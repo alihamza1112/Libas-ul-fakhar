@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Design tokens derived from the Libas-ul-Fakhar logo (BRD 3.2).
+   Ivory/sand/clay sampled from the painterly logo background. */
+@theme {
+  --color-ivory: #fbf6ee;
+  --color-cream: #f6eee1;
+  --color-sand: #eadbc5;
+  --color-clay: #c9a88f;
+  --color-rose-beige: #d9bfae;
+  --color-ink: #111111;
+  --color-ink-soft: #2a2622;
+  --color-muted: #6b6158;
+  --color-line: #e3d8c8;
+  --color-sale: #9e3b2e;
+  --color-gold: #a8823c;
+  --color-success: #2f6b4a;
+
+  --font-serif: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  --font-sans: var(--font-jost), "Jost", system-ui, sans-serif;
+
+  --radius-btn: 3px;
+  --ease-brand: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  body {
+    background: var(--color-ivory);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    line-height: 1.15;
+  }
+}
+
+/* Urdu / Arabic script, ready for Phase 2 RTL content */
+:lang(ur), :lang(ar) {
+  line-height: 1.9;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+/* Component classes live in a layer so Tailwind utilities can override them. */
+@layer components {
+  .texture {
+    background-image: url("/brand/texture.jpg");
+    background-size: cover;
+    background-position: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 48px;
+    padding-inline: 1.5rem;
+    border-radius: var(--radius-btn);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: background-color 200ms var(--ease-brand), color 200ms var(--ease-brand), border-color 200ms var(--ease-brand);
+  }
+  .btn-primary { background: var(--color-ink); color: var(--color-ivory); }
+  .btn-primary:hover { background: var(--color-ink-soft); }
+  .btn-primary:disabled { background: #8f8780; cursor: not-allowed; }
+  .btn-secondary { border: 1px solid var(--color-ink); color: var(--color-ink); background: transparent; }
+  .btn-secondary:hover { background: var(--color-ink); color: var(--color-ivory); }
+
+  .field {
+    width: 100%;
+    min-height: 48px;
+    border: 1px solid var(--color-line);
+    background: #fff;
+    border-radius: var(--radius-btn);
+    padding: 0.65rem 0.85rem;
+    font-size: 16px;
+  }
+  .field:focus { border-color: var(--color-ink); outline: none; box-shadow: 0 0 0 1px var(--color-ink); }
+  .field[aria-invalid="true"] { border-color: var(--color-sale); }
+
+  .eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
