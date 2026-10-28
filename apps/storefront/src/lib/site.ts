@@ -1,19 +1,21 @@
-// Store-wide settings. Replace placeholders before launch (BRD §10 open questions).
+// Store-wide settings: brand contact details and social channels.
 export const SITE = {
   name: "Libas-ul-Fakhar",
   arabic: "لِباسُ الفخر",
   tagline: "Garments worn with pride",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  whatsapp: process.env.NEXT_PUBLIC_WHATSAPP ?? "923000000000", // international format, no +
-  phone: "+92 300 0000000",
-  email: "care@libasulfakhar.pk",
+  whatsapp: process.env.NEXT_PUBLIC_WHATSAPP ?? "923348322662", // international format, no +
+  phone: "0334 8322662",
+  phoneHref: "tel:+923348322662",
+  email: "libasulfakhar@gmail.com",
   hours: "Mon–Sat, 10am–8pm",
   // Sale end for the announcement countdown (FR-HOME-05)
   saleEndsAt: "2026-11-30T19:00:00Z",
   social: {
-    instagram: "https://instagram.com/",
-    facebook: "https://facebook.com/",
-    tiktok: "https://tiktok.com/",
+    instagram: "https://www.instagram.com/libas_ul_fakhar",
+    facebook: "https://www.facebook.com/share/19GQT7u59M/",
+    tiktok: "https://www.tiktok.com/@libas_ul_fakhar",
+    whatsappChannel: "https://whatsapp.com/channel/0029Vb2DqOtJ3jv1lEbxFH2w",
   },
 };
 

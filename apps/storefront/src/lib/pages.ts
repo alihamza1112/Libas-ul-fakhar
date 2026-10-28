@@ -21,7 +21,8 @@ export const PAGES: Record<string, CmsPage> = {
     intro: "We’re here Monday to Saturday, 10am–8pm.",
     sections: [
       { heading: "WhatsApp", body: ["The fastest way to reach us — tap the green button on any page. Send your order number for order questions."] },
-      { heading: "Phone & email", body: ["+92 300 0000000", "care@libasulfakhar.pk"] },
+      { heading: "Phone & email", body: ["0334 8322662 (calls and WhatsApp)", "libasulfakhar@gmail.com"] },
+      { heading: "Follow us", body: ["Instagram and TikTok: @libas_ul_fakhar", "Join our WhatsApp channel for new arrivals and sale alerts — links are at the bottom of every page."] },
       { heading: "Head office", body: ["Address to be confirmed."] },
     ],
   },
@@ -70,7 +71,7 @@ export const PAGES: Record<string, CmsPage> = {
   privacy: {
     title: "Privacy policy",
     sections: [
-      { body: ["We collect only what we need to fulfil your order: your name, phone, address and (optionally) email. We never store card details — card payments are handled by a PCI-compliant hosted gateway.", "Marketing messages are sent only with your consent, and you can opt out anytime. You may request a copy or deletion of your data by contacting care@libasulfakhar.pk.", "Final policy to be reviewed by legal counsel before launch."] },
+      { body: ["We collect only what we need to fulfil your order: your name, phone, address and (optionally) email. We never store card details — card payments are handled by a PCI-compliant hosted gateway.", "Marketing messages are sent only with your consent, and you can opt out anytime. You may request a copy or deletion of your data by contacting libasulfakhar@gmail.com.", "Final policy to be reviewed by legal counsel before launch."] },
     ],
   },
 };

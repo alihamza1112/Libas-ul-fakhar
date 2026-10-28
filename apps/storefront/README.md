@@ -83,7 +83,7 @@ src/components/     UI (design tokens in src/app/globals.css)
 | Photo storage on local disk | `src/lib/server/media.ts` → S3-compatible storage + CDN |
 | Seed catalogue (41 products, used only for an empty store) | `src/lib/catalog.ts` |
 | Order store (JSON file in `data/`) | `src/lib/server/store.ts` → PostgreSQL |
-| WhatsApp number, phone, email, social, sale end date | `src/lib/site.ts`, `.env.local` |
+| Sale end date for the countdown (contact details and social links are set) | `src/lib/site.ts` |
 | Bank/IBAN details | `src/app/(shop)/order/[number]/page.tsx` |
 | Policy copy (draft, needs legal review) | `src/lib/pages.ts` |
 

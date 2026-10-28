@@ -87,8 +87,8 @@ export function Footer() {
             ]}
           />
           <div className="text-sm text-ivory/70">
-            <p>{SITE.phone}</p>
-            <p>{SITE.email}</p>
+            <p><a href={SITE.phoneHref} className="hover:text-ivory hover:underline">{SITE.phone}</a></p>
+            <p><a href={`mailto:${SITE.email}`} className="hover:text-ivory hover:underline">{SITE.email}</a></p>
             <p>{SITE.hours}</p>
           </div>
         </div>
@@ -99,7 +99,8 @@ export function Footer() {
           <ul className="flex flex-wrap gap-2" aria-label="Payment methods">
             {PAY.map((p) => <li key={p} className="rounded-sm border border-ivory/25 px-2 py-1">{p}</li>)}
           </ul>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
+            <a href={SITE.social.whatsappChannel} target="_blank" rel="noopener noreferrer" className="hover:text-ivory">WhatsApp Channel</a>
             <a href={SITE.social.instagram} target="_blank" rel="noopener noreferrer" className="hover:text-ivory">Instagram</a>
             <a href={SITE.social.facebook} target="_blank" rel="noopener noreferrer" className="hover:text-ivory">Facebook</a>
             <a href={SITE.social.tiktok} target="_blank" rel="noopener noreferrer" className="hover:text-ivory">TikTok</a>
