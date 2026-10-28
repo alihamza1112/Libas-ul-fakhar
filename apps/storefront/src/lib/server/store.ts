@@ -10,18 +10,13 @@ import { nextProductId, validateProduct, type FieldErrors, type ProductInput } f
 import { planImport, type ImportPlan } from "../productCsv";
 import { imagesFor, removedImageIds } from "../productImages";
 import { deleteMedia, deleteOrphans, mediaExists } from "./media";
-import { audit, load, readDb, save, withLock, type DB } from "./db";
+import { cachedPool, isUniqueViolation, live, tx } from "./db";
+import { insertOrder, selectAudit, selectOrders, selectProducts, writeAudit, writeProduct } from "./rows";
 import type { Address, AuditEntry, CartLine, DepartmentSlug, Order, OrderStatus, PaymentMethod, Product } from "../types";
 
-// Catalog, inventory, orders and notifications. Storage lives in ./db.
+// Catalogue, inventory, orders and notifications, stored in PostgreSQL.
 
-function findVariant(db: DB, sku: string) {
-  for (const product of db.products) {
-    const variant = product.variants.find((v) => v.sku === sku);
-    if (variant) return { product, variant };
-  }
-  return undefined;
-}
+const CATALOG_LOCK = "catalog";
 
 /** The current time for a request-time render (sale state, previews). */
 export async function requestTime(): Promise<number> {
@@ -29,77 +24,90 @@ export async function requestTime(): Promise<number> {
   return Date.now();
 }
 
-// ---------------------------------------------------------------- catalog reads
+// ---------------------------------------------------------------- catalogue reads
 
 /** All stored products (any status), without derived pricing. For the cached storefront catalogue. */
 export async function readProducts(): Promise<Product[]> {
-  return (await readDb()).products;
+  return selectProducts(cachedPool());
 }
 
 /** Live view for the back office: every status, priced as of now. */
 export async function adminListProducts(): Promise<Product[]> {
-  const db = await load();
+  const products = await selectProducts(await live());
   const now = Date.now();
-  return db.products.map((p) => materialize(p, now));
+  return products.map((p) => materialize(p, now));
 }
 
 export async function adminGetProduct(id: string): Promise<Product | undefined> {
-  return (await adminListProducts()).find((p) => p.id === id);
+  const [p] = await selectProducts(await live(), "WHERE p.id = $1", [id]);
+  return p ? materialize(p, Date.now()) : undefined;
 }
 
 /** Live price and stock for bag lines, used to re-validate before checkout (FR-CART-06). */
 export async function liveLines(lines: CartLine[]) {
-  const db = await load();
+  const wanted = lines.slice(0, 30);
+  const products = await selectProducts(await live(), "WHERE p.id = ANY($1::text[]) AND p.status = 'active'", [wanted.map((l) => String(l.productId))]);
   const now = Date.now();
-  return lines.slice(0, 30).map((l) => {
-    const p = db.products.find((x) => x.id === l.productId && x.status === "active");
+  return wanted.map((l) => {
+    const p = products.find((x) => x.id === l.productId);
     const v = p?.variants.find((x) => x.sku === l.sku);
     return { sku: l.sku, stock: p && v ? (p.preOrder ? 99 : v.stock) : 0, price: p ? materialize(p, now).price : 0 };
   });
 }
 
 export async function skuExists(sku: string): Promise<boolean> {
-  return !!findVariant(await load(), sku);
+  const { rowCount } = await (await live()).query("SELECT 1 FROM variants WHERE sku = $1", [sku]);
+  return !!rowCount;
 }
 
-// ---------------------------------------------------------------- catalog writes
+async function photoIdsInUse(): Promise<Set<string>> {
+  const { rows } = await cachedPool().query<{ id: string }>("SELECT jsonb_array_elements(images) ->> 'id' AS id FROM products");
+  return new Set(rows.map((r) => r.id));
+}
+
+// ---------------------------------------------------------------- catalogue writes
 
 /** Housekeeping after uploads: drop files no product kept for a day. */
 export async function cleanupUploads(): Promise<number> {
-  const db = await readDb();
-  return deleteOrphans(new Set(db.products.flatMap((p) => (p.images ?? []).map((i) => i.id))), 24 * 3600 * 1000);
+  return deleteOrphans(await photoIdsInUse(), 24 * 3600 * 1000);
 }
 
 export type SaveResult = { ok: true; product: Product } | { ok: false; errors: FieldErrors };
 
-export function saveProduct(input: ProductInput, by: string): Promise<SaveResult> {
-  return withLock(async () => {
-    const db = await load();
-    const current = input.id ? db.products.find((p) => p.id === input.id) : undefined;
-    if (input.id && !current) return { ok: false, errors: { form: "This product no longer exists." } };
-    const others = db.products.filter((p) => p.id !== current?.id);
-    const nowIso = new Date().toISOString();
-    const res = validateProduct(input, others, current, nowIso, nextProductId(db.products));
-    if (!res.ok) return res;
+export async function saveProduct(input: ProductInput, by: string): Promise<SaveResult> {
+  let res: SaveResult & { removed?: string[] };
+  try {
+    res = await tx(async (c) => {
+      const all = await selectProducts(c);
+      const current = input.id ? all.find((p) => p.id === input.id) : undefined;
+      if (input.id && !current) return { ok: false as const, errors: { form: "This product no longer exists." } };
+      const others = all.filter((p) => p.id !== current?.id);
+      const v = validateProduct(input, others, current, new Date().toISOString(), nextProductId(all));
+      if (!v.ok) return v;
 
-    const p = res.product;
-    // New photo ids must be real uploaded files (ids are random, so they can't be guessed)
-    const added = (p.images ?? []).filter((i) => !(current?.images ?? []).some((c) => c.id === i.id));
-    const missing = (await Promise.all(added.map((i) => mediaExists(i.id)))).some((ok) => !ok);
-    if (missing) return { ok: false, errors: { images: "A photo is missing on the server. Please upload it again." } };
-    if (current) {
-      db.products = db.products.map((x) => (x.id === p.id ? p : x));
-      audit(db, by, "product.update", p.id, describeChanges(current, p));
-    } else {
-      db.products.push(p);
-      audit(db, by, "product.create", p.id, `${p.name} · ${p.variants.length} variants · ${p.status}`);
-    }
-    await save(db);
+      const p = v.product;
+      // New photo ids must be real uploaded files (ids are random, so they can't be guessed)
+      const added = (p.images ?? []).filter((i) => !(current?.images ?? []).some((x) => x.id === i.id));
+      const missing = (await Promise.all(added.map((i) => mediaExists(i.id)))).some((ok) => !ok);
+      if (missing) return { ok: false as const, errors: { images: "A photo is missing on the server. Please upload it again." } };
+
+      await writeProduct(c, p);
+      if (current) await writeAudit(c, by, "product.update", p.id, describeChanges(current, p));
+      else await writeAudit(c, by, "product.create", p.id, `${p.name} · ${p.variants.length} variants · ${p.status}`);
+      return { ok: true as const, product: materialize(p, Date.now()), removed: removedImageIds(current?.images, p.images) };
+    }, CATALOG_LOCK);
+  } catch (e) {
+    // Backstop for edits racing in from another server: the constraint still holds
+    if (isUniqueViolation(e, "products_slug_key")) return { ok: false, errors: { slug: "Another product already uses this URL." } };
+    if (isUniqueViolation(e, "variants_pkey")) return { ok: false, errors: { variants: "A SKU is already in use by another product." } };
+    throw e;
+  }
+  if (res.ok && res.removed?.length) {
     // Delete photo files this edit removed, unless another product still uses them
-    const stillUsed = new Set(db.products.flatMap((x) => (x.images ?? []).map((i) => i.id)));
-    await deleteMedia(removedImageIds(current?.images, p.images).filter((id) => !stillUsed.has(id)));
-    return { ok: true, product: materialize(p, Date.now()) };
-  });
+    const inUse = await photoIdsInUse();
+    await deleteMedia(res.removed.filter((id) => !inUse.has(id)));
+  }
+  return res.ok ? { ok: true, product: res.product } : res;
 }
 
 function rs(paisa: number) {
@@ -121,20 +129,18 @@ function describeChanges(a: Product, b: Product): string {
   return out.join("; ") || "no changes";
 }
 
-/** CSV import: plan (validate) and, if `apply` and the plan is clean, write it all at once. */
-export function importProducts(csv: string, apply: boolean, by: string): Promise<ImportPlan> {
-  const run = async () => {
-    const db = await load();
-    const plan = planImport(csv, db.products, new Date().toISOString());
-    if (!apply || plan.errors.length) return plan;
-    const byId = new Map(plan.products.map((p) => [p.id, p]));
-    db.products = [...db.products.map((p) => byId.get(p.id) ?? p), ...plan.products.filter((p) => !db.products.some((x) => x.id === p.id))];
-    audit(db, by, "product.import", "catalog", `${plan.created.length} created, ${plan.updated.length} updated, ${plan.variantCount} variants`);
-    for (const p of plan.products) audit(db, by, plan.created.includes(p.slug) ? "product.create" : "product.update", p.id, "via CSV import");
-    await save(db);
+/** CSV import: plan (validate) and, if `apply` and the plan is clean, write it all in one transaction. */
+export async function importProducts(csv: string, apply: boolean, by: string): Promise<ImportPlan> {
+  if (!apply) return planImport(csv, await selectProducts(await live()), new Date().toISOString());
+  return tx(async (c) => {
+    // Re-plan inside the lock so the import is validated against the catalogue it writes to
+    const plan = planImport(csv, await selectProducts(c), new Date().toISOString());
+    if (plan.errors.length) return plan;
+    for (const p of plan.products) await writeProduct(c, p);
+    await writeAudit(c, by, "product.import", "catalog", `${plan.created.length} created, ${plan.updated.length} updated, ${plan.variantCount} variants`);
+    for (const p of plan.products) await writeAudit(c, by, plan.created.includes(p.slug) ? "product.create" : "product.update", p.id, "via CSV import");
     return plan;
-  };
-  return apply ? withLock(run) : run();
+  }, CATALOG_LOCK);
 }
 
 export interface BulkSaleInput {
@@ -147,45 +153,42 @@ export interface BulkSaleInput {
 
 /** Category-wide sale with start/end dates that revert automatically (FR-PRM-01). */
 export function bulkSale(input: BulkSaleInput, by: string): Promise<number> {
-  return withLock(async () => {
-    const db = await load();
-    let n = 0;
-    db.products = db.products.map((p) => {
-      if (p.status === "archived") return p;
-      if (input.department !== "all" && p.department !== input.department) return p;
-      if (input.category && p.category !== input.category) return p;
-      n++;
-      if (input.percent <= 0) return { ...p, sale: undefined, updatedAt: new Date().toISOString() };
-      const sale = {
-        price: salePriceForPercent(p.basePrice, input.percent),
-        ...(input.startsAt ? { startsAt: input.startsAt } : {}),
-        ...(input.endsAt ? { endsAt: input.endsAt } : {}),
-      };
-      return { ...p, sale, updatedAt: new Date().toISOString() };
-    });
+  return tx(async (c) => {
+    const { rows } = await c.query<{ id: string; base_price: number }>(
+      `SELECT id, base_price FROM products
+       WHERE status <> 'archived' AND ($1 = 'all' OR department = $1) AND ($2::text IS NULL OR category = $2)`,
+      [input.department, input.category ?? null],
+    );
+    const ids = rows.map((r) => r.id);
+    if (input.percent <= 0) {
+      await c.query("UPDATE products SET sale_price = NULL, sale_starts_at = NULL, sale_ends_at = NULL, updated_at = now() WHERE id = ANY($1::text[])", [ids]);
+    } else {
+      await c.query(
+        `UPDATE products p SET sale_price = s.price, sale_starts_at = $3, sale_ends_at = $4, updated_at = now()
+         FROM unnest($1::text[], $2::int[]) AS s(id, price) WHERE p.id = s.id`,
+        [ids, rows.map((r) => salePriceForPercent(r.base_price, input.percent)), input.startsAt ?? null, input.endsAt ?? null],
+      );
+    }
     const scope = `${input.department}${input.category ? `/${input.category}` : ""}`;
-    audit(db, by, input.percent > 0 ? "sale.bulk" : "sale.clear", scope, input.percent > 0 ? `${input.percent}% off ${n} products${input.startsAt ? ` from ${input.startsAt}` : ""}${input.endsAt ? ` until ${input.endsAt}` : ""}` : `cleared on ${n} products`);
-    await save(db);
+    const n = ids.length;
+    await writeAudit(c, by, input.percent > 0 ? "sale.bulk" : "sale.clear", scope, input.percent > 0 ? `${input.percent}% off ${n} products${input.startsAt ? ` from ${input.startsAt}` : ""}${input.endsAt ? ` until ${input.endsAt}` : ""}` : `cleared on ${n} products`);
     return n;
-  });
+  }, CATALOG_LOCK);
 }
 
 export function setStock(sku: string, qty: number, by: string): Promise<void> {
-  return withLock(async () => {
-    const db = await load();
-    const hit = findVariant(db, sku);
-    if (!hit) return;
+  return tx(async (c) => {
+    const { rows } = await c.query<{ stock: number; product_id: string }>("SELECT stock, product_id FROM variants WHERE sku = $1 FOR UPDATE", [sku]);
+    if (!rows[0]) return;
     const next = Math.max(0, Math.floor(qty));
-    if (hit.variant.stock === next) return;
-    audit(db, by, "stock.set", hit.product.id, `${sku}: ${hit.variant.stock} → ${next}`);
-    hit.variant.stock = next;
-    await save(db);
+    if (rows[0].stock === next) return;
+    await c.query("UPDATE variants SET stock = $2 WHERE sku = $1", [sku, next]);
+    await writeAudit(c, by, "stock.set", rows[0].product_id, `${sku}: ${rows[0].stock} → ${next}`);
   });
 }
 
 export async function listAudit(target?: string, limit = 50): Promise<AuditEntry[]> {
-  const db = await load();
-  return (target ? db.audit.filter((a) => a.target === target) : db.audit).slice(0, limit);
+  return selectAudit(await live(), target, limit);
 }
 
 // ---------------------------------------------------------------- orders
@@ -218,119 +221,137 @@ function orderNumber(): string {
   return `LUF-${ymd}-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
-export function createOrder(input: CreateOrderInput): Promise<{ order: Order; duplicate: boolean }> {
-  return withLock(async () => {
-    const db = await load();
+async function orderByKey(key: string): Promise<Order | undefined> {
+  return (await selectOrders(cachedPool(), "WHERE o.idempotency_key = $1", [key]))[0];
+}
 
-    // Idempotency: double-clicks / retries return the original order.
-    const existing = db.orders.find((o) => o.idempotencyKey === input.idempotencyKey);
-    if (existing) return { order: existing, duplicate: true };
+export async function createOrder(input: CreateOrderInput): Promise<{ order: Order; duplicate: boolean }> {
+  if (!input.idempotencyKey || input.idempotencyKey.length < 8) throw new OrderError("Missing idempotency key.");
+  // Idempotency: double-clicks / retries return the original order.
+  const existing = await orderByKey(input.idempotencyKey);
+  if (existing) return { order: existing, duplicate: true };
 
-    if (!input.idempotencyKey || input.idempotencyKey.length < 8) throw new OrderError("Missing idempotency key.");
-    if (input.payment !== "cod" && input.payment !== "bank") throw new OrderError("Choose a payment method.", "payment");
-    if (!Array.isArray(input.lines) || input.lines.length === 0) throw new OrderError("Your bag is empty.");
-    if (input.lines.length > 30) throw new OrderError("Too many items in one order.");
+  if (input.payment !== "cod" && input.payment !== "bank") throw new OrderError("Choose a payment method.", "payment");
+  if (!Array.isArray(input.lines) || input.lines.length === 0) throw new OrderError("Your bag is empty.");
+  if (input.lines.length > 30) throw new OrderError("Too many items in one order.");
+  const address = checkAddress(input.address);
 
-    const address = checkAddress(input.address);
+  // Merge duplicate SKUs
+  const merged = new Map<string, CartLine>();
+  for (const l of input.lines) {
+    const qty = Math.floor(Number(l.qty));
+    if (!Number.isFinite(qty) || qty < 1 || qty > 10) throw new OrderError("Invalid quantity.");
+    const prev = merged.get(l.sku);
+    merged.set(l.sku, { productId: String(l.productId), sku: String(l.sku), qty: (prev?.qty ?? 0) + qty });
+  }
+  const lines = [...merged.values()];
 
-    // Merge duplicate SKUs, re-price from the live catalogue, re-validate stock.
-    const merged = new Map<string, CartLine>();
-    for (const l of input.lines) {
-      const qty = Math.floor(Number(l.qty));
-      if (!Number.isFinite(qty) || qty < 1 || qty > 10) throw new OrderError("Invalid quantity.");
-      const prev = merged.get(l.sku);
-      merged.set(l.sku, { productId: l.productId, sku: l.sku, qty: (prev?.qty ?? 0) + qty });
-    }
+  try {
+    const order = await tx(async (c) => {
+      // Re-price from the live catalogue
+      const products = await selectProducts(c, "WHERE p.id = ANY($1::text[]) AND p.status = 'active'", [lines.map((l) => l.productId)]);
+      const now = Date.now();
+      const items = lines.map((l) => {
+        const stored = products.find((x) => x.id === l.productId);
+        const v = stored?.variants.find((x) => x.sku === l.sku);
+        if (!stored || !v) throw new OrderError("An item in your bag is no longer available.");
+        const p = materialize(stored, now);
+        const photo = imagesFor(p, v.colour)[0]?.url;
+        return {
+          preOrder: !!p.preOrder,
+          label: `${p.name} (${v.colour}, ${v.size})`,
+          item: { productId: p.id, sku: v.sku, name: p.name, size: v.size, colour: v.colour, unitPrice: p.price, qty: l.qty, garment: p.garment, hex: p.colours.find((x) => x.name === v.colour)?.hex, ...(photo ? { image: photo } : {}) },
+        };
+      });
 
-    const now = Date.now();
-    const items = [...merged.values()].map((l) => {
-      const stored = db.products.find((x) => x.id === l.productId && x.status === "active");
-      const v = stored?.variants.find((x) => x.sku === l.sku);
-      if (!stored || !v) throw new OrderError("An item in your bag is no longer available.");
-      const p = materialize(stored, now);
-      if (!p.preOrder && v.stock < l.qty) {
-        throw new OrderError(v.stock === 0 ? `${p.name} (${v.colour}, ${v.size}) just sold out.` : `Only ${v.stock} left of ${p.name} (${v.colour}, ${v.size}).`);
+      const totals = computeTotals(items.map((x) => x.item), { coupon: input.coupon, city: address.city });
+      if (input.coupon && !totals.couponApplied) throw new OrderError(totals.couponError ?? "Coupon not valid.", "coupon");
+
+      // Atomic stock decrement: the row lock plus `stock >= qty` means concurrent
+      // orders (even on different servers) can never oversell the last unit.
+      for (const { item, preOrder, label } of items) {
+        if (preOrder) {
+          await c.query("UPDATE variants SET stock = GREATEST(stock - $2, 0) WHERE sku = $1", [item.sku, item.qty]);
+          continue;
+        }
+        const { rowCount } = await c.query("UPDATE variants SET stock = stock - $2 WHERE sku = $1 AND stock >= $2", [item.sku, item.qty]);
+        if (!rowCount) {
+          const { rows } = await c.query<{ stock: number }>("SELECT stock FROM variants WHERE sku = $1", [item.sku]);
+          const left = rows[0]?.stock ?? 0;
+          throw new OrderError(left === 0 ? `${label} just sold out.` : `Only ${left} left of ${label}.`);
+        }
       }
-      const photo = imagesFor(p, v.colour)[0]?.url;
-      return { variant: v, item: { productId: p.id, sku: v.sku, name: p.name, size: v.size, colour: v.colour, unitPrice: p.price, qty: l.qty, garment: p.garment, hex: p.colours.find((c) => c.name === v.colour)?.hex, ...(photo ? { image: photo } : {}) } };
+
+      const at = new Date(now).toISOString();
+      const o: Order = {
+        number: orderNumber(),
+        ...(input.customerId ? { customerId: input.customerId } : {}),
+        idempotencyKey: input.idempotencyKey,
+        createdAt: at,
+        status: "pending",
+        history: [{ status: "pending", at, by: "customer" }],
+        items: items.map((x) => x.item),
+        address,
+        payment: input.payment,
+        coupon: totals.couponApplied,
+        totals,
+        notes: input.notes?.trim().slice(0, 500) || undefined,
+      };
+      await insertOrder(c, o);
+      return o;
     });
-
-    const totals = computeTotals(items.map((x) => x.item), { coupon: input.coupon, city: address.city });
-    if (input.coupon && !totals.couponApplied) throw new OrderError(totals.couponError ?? "Coupon not valid.", "coupon");
-
-    for (const { variant, item } of items) variant.stock = Math.max(0, variant.stock - item.qty);
-
-    const at = new Date(now).toISOString();
-    const order: Order = {
-      number: orderNumber(),
-      ...(input.customerId ? { customerId: input.customerId } : {}),
-      idempotencyKey: input.idempotencyKey,
-      createdAt: at,
-      status: "pending",
-      history: [{ status: "pending", at, by: "customer" }],
-      items: items.map((x) => x.item),
-      address,
-      payment: input.payment,
-      coupon: totals.couponApplied,
-      totals,
-      notes: input.notes?.trim().slice(0, 500) || undefined,
-    };
-    db.orders.unshift(order);
-    await save(db);
     notify(order, "Order received");
     return { order, duplicate: false };
-  });
+  } catch (e) {
+    // Two identical submissions raced: the second loses on the unique key and gets the first order
+    if (isUniqueViolation(e, "orders_idempotency_key_key")) {
+      const first = await orderByKey(input.idempotencyKey);
+      if (first) return { order: first, duplicate: true };
+    }
+    throw e;
+  }
 }
 
 export async function getOrder(number: string): Promise<Order | undefined> {
-  return (await load()).orders.find((o) => o.number === number);
+  return (await selectOrders(await live(), "WHERE o.number = $1", [number]))[0];
 }
 
 export async function trackOrder(number: string, phone: string): Promise<Order | undefined> {
   const n = normalisePhone(phone);
-  const o = await getOrder(number.trim().toUpperCase());
-  return o && n && o.address.phone === n ? o : undefined;
+  if (!n) return undefined;
+  return (await selectOrders(await live(), "WHERE o.number = $1 AND o.phone = $2", [number.trim().toUpperCase(), n]))[0];
 }
 
 export async function listOrders(): Promise<Order[]> {
-  return (await load()).orders;
+  return selectOrders(await live());
 }
 
-export function updateOrderStatus(number: string, to: OrderStatus, by: string, note?: string): Promise<Order> {
-  return withLock(async () => {
-    const db = await load();
-    const o = db.orders.find((x) => x.number === number);
-    if (!o) throw new OrderError("Order not found.");
-    if (!canTransition(o.status, to)) throw new OrderError(`Cannot move an order from ${o.status} to ${to}.`);
+export async function updateOrderStatus(number: string, to: OrderStatus, by: string, note?: string): Promise<Order> {
+  const order = await tx(async (c) => {
+    const { rows } = await c.query<{ status: OrderStatus }>("SELECT status FROM orders WHERE number = $1 FOR UPDATE", [number]);
+    if (!rows[0]) throw new OrderError("Order not found.");
+    if (!canTransition(rows[0].status, to)) throw new OrderError(`Cannot move an order from ${rows[0].status} to ${to}.`);
     if (restocks(to)) {
-      for (const it of o.items) {
-        const hit = findVariant(db, it.sku);
-        if (hit) hit.variant.stock += it.qty;
-        else audit(db, by, "stock.restock_skipped", o.number, `${it.sku} no longer exists; ${it.qty} unit(s) not restocked`);
+      const { rows: items } = await c.query<{ sku: string; qty: number }>("SELECT sku, qty FROM order_items WHERE order_number = $1", [number]);
+      for (const it of items) {
+        const { rowCount } = await c.query("UPDATE variants SET stock = stock + $2 WHERE sku = $1", [it.sku, it.qty]);
+        if (!rowCount) await writeAudit(c, by, "stock.restock_skipped", number, `${it.sku} no longer exists; ${it.qty} unit(s) not restocked`);
       }
     }
-    o.status = to;
-    o.history.push({ status: to, at: new Date().toISOString(), by, note: note?.slice(0, 300) });
-    await save(db);
-    notify(o, `Status: ${to}`);
-    return o;
+    await c.query("UPDATE orders SET status = $2 WHERE number = $1", [number, to]);
+    await c.query("INSERT INTO order_history (order_number, status, by, note) VALUES ($1, $2, $3, $4)", [number, to, by, note?.slice(0, 300) || null]);
+    return (await selectOrders(c, "WHERE o.number = $1", [number]))[0];
   });
+  notify(order, `Status: ${to}`);
+  return order;
 }
 
-export function addSubscriber(contact: string): Promise<void> {
-  return withLock(async () => {
-    const db = await load();
-    if (!db.subscribers.some((s) => s.contact === contact)) db.subscribers.push({ contact, at: new Date().toISOString() });
-    await save(db);
-  });
+export async function addSubscriber(contact: string): Promise<void> {
+  await cachedPool().query("INSERT INTO subscribers (contact) VALUES ($1) ON CONFLICT (contact) DO NOTHING", [contact]);
 }
 
-export function addStockAlert(sku: string, contact: string): Promise<void> {
-  return withLock(async () => {
-    const db = await load();
-    db.stockAlerts.push({ sku, contact, at: new Date().toISOString() });
-    await save(db);
-  });
+export async function addStockAlert(sku: string, contact: string): Promise<void> {
+  await cachedPool().query("INSERT INTO stock_alerts (sku, contact) VALUES ($1, $2)", [sku, contact]);
 }
 
 // Notification provider hook (email / SMS / WhatsApp). Logged until a provider is configured.

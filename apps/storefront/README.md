@@ -6,16 +6,26 @@ Cache Components), TypeScript, Tailwind v4 with brand design tokens.
 
 ## Run it
 
+Needs PostgreSQL (developed on 18). Create a database user and database once (enter the `postgres` password you chose when installing PostgreSQL):
+
+```bash
+psql -U postgres -c "CREATE USER libas WITH PASSWORD 'choose-a-password';" -c "CREATE DATABASE libas_ul_fakhar OWNER libas;"
+```
+
 ```bash
 npm install
-cp .env.example .env.local   # then set ADMIN_PASSWORD and AUTH_SECRET
+cp .env.example .env.local   # set DATABASE_URL, ADMIN_PASSWORD and AUTH_SECRET
+npm run db:setup              # creates the tables, then imports data/db.json or seeds 41 sample products
 npm run dev                   # http://localhost:3000
 ```
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Dev server |
-| `npm run build && npm start` | Production build |
+| `npm run db:setup` | Apply migrations, then fill empty tables (from `data/db.json` if present, else sample products). Safe to re-run |
+| `npm run db:migrate` | Apply new migrations from `db/migrations/` only |
+| `npm run db:verify-import` | After moving from the old file store: compares PostgreSQL with `data/db.json` field by field |
+| `npm run build && npm start` | Production build (the database must be reachable at build time: the catalogue is prerendered) |
 | `npm test` | Unit tests for pricing, coupons, shipping, order state machine, search, sale scheduling, product validation, CSV import/export (Node test runner) |
 | `npm run lint` | ESLint |
 
@@ -59,14 +69,18 @@ Test coupons: `WELCOME10` (10%, max Rs. 1,000, min Rs. 2,000), `FAKHAR500` (Rs. 
 
 ```
 src/lib/            domain logic (pure, unit-tested): catalog, pricing, orderStatus, search, filters, sizeGuide
-src/lib/server/     server-only: store (orders/inventory), adminAuth, rateLimit
+src/lib/server/     server-only: db (PostgreSQL pool, transactions), rows (SQL mapping), store (catalogue/orders),
+                    customers (accounts), media (photos), adminAuth, rateLimit
+db/migrations/      versioned SQL schema        scripts/db.ts   migrate + import
 src/app/(shop)/     storefront routes        src/app/admin/   back office
 src/app/api/        orders, cart/validate, newsletter, stock-alert
 src/components/     UI (design tokens in src/app/globals.css)
 ```
 
 - Money is integer paisa; formatted as `Rs. 2,499`. Admin forms and CSV use whole rupees.
-- Products live in the data store (seeded from `src/lib/catalog.ts` on first run). Each product stores `basePrice` + optional `sale {price, startsAt, endsAt}`; the selling price is derived at read time (`src/lib/productPricing.ts`), so no job is needed to start or end a sale.
+- Data lives in PostgreSQL: products and variants (stock), orders with items and status history, customers, addresses, sessions, OTPs, newsletter subscribers, back-in-stock requests and the audit log. Schema: `db/migrations/001_init.sql`. Every write runs in a transaction; catalogue edits and per-customer changes take a transaction-scoped advisory lock, and slug, SKU and order-key uniqueness are enforced by constraints.
+- Stock is decremented with `UPDATE variants SET stock = stock - qty WHERE sku = … AND stock >= qty`, so concurrent orders cannot oversell, even across several servers.
+- Products are seeded from `src/lib/catalog.ts` on an empty database. Each product stores `basePrice` + optional `sale {price, startsAt, endsAt}`; the selling price is derived at read time (`src/lib/productPricing.ts`), so no job is needed to start or end a sale.
 - The storefront reads products through `getCatalog()` (`src/lib/server/catalog.ts`): a `"use cache"` read tagged `catalog`, refreshed every minute and invalidated by admin edits, orders and cancellations. Checkout always re-prices and re-checks stock live.
 - Photos: uploads go to `POST /api/admin/uploads` (admin only, one file per request, max 10 MB, JPEG/PNG/WebP, at least 500px on the short side). sharp re-encodes every upload to WebP (max 2000×2500), applies phone rotation and strips EXIF/GPS. Files are stored in `data/uploads/products/` and served from `/media/products/<id>.webp` with immutable caching; `next/image` resizes them to AVIF/WebP per device. Removing a photo deletes its file on save; uploads never saved to a product are deleted after 24 hours. CSV import/export leaves photos untouched.
 - Accounts: sessions are random tokens in an httpOnly cookie (30 days), stored only as SHA-256 hashes. OTP codes are 6 digits, HMAC-hashed with `AUTH_SECRET`, valid 5 minutes, single use, max 5 wrong tries; sends are limited (30 s cooldown, 3 per 15 min per number, plus per-device limits). Without an SMS provider, OTP codes are written to the server log and, in development only, shown on the sign-in screen. The provider hook is `deliverOtp()` in `src/lib/server/customers.ts`.
@@ -82,7 +96,6 @@ src/components/     UI (design tokens in src/app/globals.css)
 | Product photography (upload in admin; placeholder art until then) | Admin → Products → Photos |
 | Photo storage on local disk | `src/lib/server/media.ts` → S3-compatible storage + CDN |
 | Seed catalogue (41 products, used only for an empty store) | `src/lib/catalog.ts` |
-| Order store (JSON file in `data/`) | `src/lib/server/store.ts` → PostgreSQL |
 | Sale end date for the countdown (contact details and social links are set) | `src/lib/site.ts` |
 | Bank/IBAN details | `src/app/(shop)/order/[number]/page.tsx` |
 | Policy copy (draft, needs legal review) | `src/lib/pages.ts` |

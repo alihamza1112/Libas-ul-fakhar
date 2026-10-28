@@ -27,15 +27,19 @@ Requires **Node.js 22.18 or later** (developed on Node 24).
 cd apps/storefront
 npm install
 cp .env.example .env.local
+npm run db:setup
 npm run dev
 ```
 
-Before starting, edit `.env.local` and set at least:
+Requires **PostgreSQL** (developed on version 18). Create a database and user for the app first; the [app README](apps/storefront/README.md#run-it) has the one-line command.
 
+Before running `db:setup`, edit `.env.local` and set at least:
+
+- `DATABASE_URL`: connection to that database, e.g. `postgres://libas:PASSWORD@localhost:5432/libas_ul_fakhar`
 - `ADMIN_PASSWORD`: password for the back office at `/admin`
 - `AUTH_SECRET`: a long random string, used to secure customer sign-in
 
-Then open http://localhost:3000. On first run the store fills itself with 41 sample products. In development, sign-in codes are shown on screen because no SMS provider is connected yet.
+`npm run db:setup` creates the tables and fills them with 41 sample products. Then open http://localhost:3000. In development, sign-in codes are shown on screen because no SMS provider is connected yet.
 
 Other commands (run inside `apps/storefront`):
 
@@ -47,7 +51,7 @@ Other commands (run inside `apps/storefront`):
 
 ## Tech
 
-Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS v4, sharp. Data is kept in a local JSON file (`apps/storefront/data/`) behind a small storage module designed to be swapped for PostgreSQL, as the BRD recommends.
+Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS v4, sharp. Data is stored in PostgreSQL via node-postgres with versioned SQL migrations; product photos are stored on disk in `apps/storefront/data/uploads/` (cloud storage is a later step).
 
 ## Repository layout
 
