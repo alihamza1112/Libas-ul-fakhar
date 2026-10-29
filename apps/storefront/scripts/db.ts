@@ -2,8 +2,9 @@
 //
 // migrate  Applies db/migrations/*.sql in order, each once, inside a transaction.
 // import   Fills empty tables: from data/db.json (the earlier file-based store) when
-//          present, otherwise seeds the sample catalogue. Tables that already have
-//          rows are left untouched, so running it again is safe.
+//          present, otherwise seeds the sample catalogue (unless
+//          SEED_SAMPLE_PRODUCTS=false, for a live store that starts empty). Tables
+//          that already have rows are left untouched, so running it again is safe.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -53,12 +54,13 @@ async function isEmpty(client: pg.PoolClient, table: string) {
 }
 
 async function importData(client: pg.PoolClient) {
+  const samples = process.env.SEED_SAMPLE_PRODUCTS !== "false";
   let legacy: LegacyDb | undefined;
   try {
     legacy = JSON.parse(await fs.readFile(LEGACY_JSON, "utf8"));
     console.log(`Importing from ${path.relative(ROOT, LEGACY_JSON)}`);
   } catch {
-    console.log("No data/db.json found: seeding the sample catalogue only.");
+    console.log(samples ? "No data/db.json found: seeding the sample catalogue only." : "No data/db.json found; sample products are switched off.");
   }
 
   await client.query("BEGIN");
@@ -70,7 +72,7 @@ async function importData(client: pg.PoolClient) {
     };
 
     await step("products", "products", async () => {
-      const products = legacy?.products?.length ? legacy.products : SEED_PRODUCTS;
+      const products = legacy?.products?.length ? legacy.products : samples ? SEED_PRODUCTS : [];
       for (const p of products) await writeProduct(client, p);
       return products.length;
     });

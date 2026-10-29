@@ -36,6 +36,7 @@ Edit `.env` and set:
 | `ADMIN_PASSWORD` | Back office password for `/admin` |
 | `AUTH_SECRET` | 32+ random characters; secures customer sign-in. Changing it signs everyone out |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional; enables Google sign-in |
+| `SEED_SAMPLE_PRODUCTS` | `false` (default): a new store starts with no products. `true`: fill a new database with 41 demo products, for a demo site |
 
 `.env` holds secrets and is git-ignored. Never commit it.
 
@@ -49,7 +50,7 @@ docker compose up -d           # start everything
 
 The database has to be running before `build`, because the build prerenders catalogue pages from it. The build connects through `127.0.0.1:<DB_PORT>`. The connection string reaches the build as a secret and is not stored in the image.
 
-On an empty database the first start creates the tables and adds the 41 sample products. Check it is up:
+On an empty database the first start creates the tables. The store then has no products until you add them in `/admin/products` (or set `SEED_SAMPLE_PRODUCTS=true` for demo products). Home page sections such as New arrivals and Best sellers appear once there are products to show. Check it is up:
 
 ```bash
 docker compose ps              # app should be "healthy"

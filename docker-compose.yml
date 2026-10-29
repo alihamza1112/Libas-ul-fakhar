@@ -52,6 +52,8 @@ services:
       NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-923348322662}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # A new database starts with no products unless this is "true" (demo store)
+      SEED_SAMPLE_PRODUCTS: ${SEED_SAMPLE_PRODUCTS:-false}
     volumes:
       - uploads:/app/data/uploads
     ports:

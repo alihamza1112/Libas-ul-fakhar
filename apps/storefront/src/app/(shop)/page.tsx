@@ -101,12 +101,15 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-4 py-10">
-        <SectionHead eyebrow="Just landed" title="New arrivals" href="/collections/new-arrivals" />
-        <ProductRail products={newArrivals.slice(0, 4)} />
-      </section>
+      {newArrivals.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-10">
+          <SectionHead eyebrow="Just landed" title="New arrivals" href="/collections/new-arrivals" />
+          <ProductRail products={newArrivals.slice(0, 4)} />
+        </section>
+      )}
 
-      {/* Shoppable look (FR-HOME-06) */}
+      {/* Shoppable look (FR-HOME-06), shown only while all of its pieces are on sale */}
+      {look.length === LOOK.length && (
       <section className="bg-cream py-16">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 md:grid-cols-2">
           <div className="grid grid-cols-3 gap-3">
@@ -132,11 +135,14 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      )}
 
-      <section className="mx-auto max-w-7xl px-4 py-14">
-        <SectionHead eyebrow="Most loved" title="Best sellers" href="/collections/all?sort=best" />
-        <ProductRail products={bestSellers.slice(0, 4)} />
-      </section>
+      {bestSellers.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-14">
+          <SectionHead eyebrow="Most loved" title="Best sellers" href="/collections/all?sort=best" />
+          <ProductRail products={bestSellers.slice(0, 4)} />
+        </section>
+      )}
 
       <PersonalRows products={products} />
 
