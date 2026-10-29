@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { materialize } from "../productPricing";
+import { resolveBundles } from "../bundles";
 import type { Product } from "../types";
 import { readProducts } from "./store";
 
@@ -17,7 +18,7 @@ export async function getCatalog(): Promise<Product[]> {
   cacheTag(CATALOG_TAG);
   cacheLife("minutes");
   const now = Date.now();
-  return (await readProducts()).filter((p) => p.status === "active").map((p) => materialize(p, now));
+  return resolveBundles((await readProducts()).filter((p) => p.status === "active").map((p) => materialize(p, now)));
 }
 
 export async function getCatalogProduct(slug: string): Promise<Product | undefined> {

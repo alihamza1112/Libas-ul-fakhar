@@ -16,6 +16,7 @@ const SYNONYMS: Record<string, string[]> = {
   shawl: ["shawl", "shawls", "chadar", "chaddar", "dupatta", "dupattas", "pashmina", "stole"],
   cap: ["cap", "topi", "topee"],
   belt: ["belt", "belts"],
+  giftbox: ["gift", "gifts", "giftbox", "tohfa", "tohfay", "tohfe", "tohfa-e-khaas", "khaas", "hamper", "hampers", "box", "boxes", "bundle"],
   men: ["men", "mens", "man", "male", "gents", "mard"],
   women: ["women", "womens", "woman", "ladies", "female", "aurat"],
   boys: ["boys", "boy", "son", "larka", "kids"],

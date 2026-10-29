@@ -1,6 +1,6 @@
 // Money is always integer paisa (PKR minor units). Rs. 2,499 => 249900.
 
-export type DepartmentSlug = "men" | "women" | "boys" | "girls";
+export type DepartmentSlug = "men" | "women" | "boys" | "girls" | "gifts";
 
 export type Garment =
   | "kurta"
@@ -13,7 +13,8 @@ export type Garment =
   | "frock"
   | "shawl"
   | "cap"
-  | "belt";
+  | "belt"
+  | "giftbox";
 
 export interface Colour {
   name: string;
@@ -48,6 +49,32 @@ export interface ProductImage {
   alt?: string;
 }
 
+/** One fixed item in a gift box: admin picks the exact size/colour (variant). */
+export interface BundleItem {
+  productId: string;
+  sku: string;
+  qty: number;
+}
+
+export type BundlePricing = { mode: "fixed" } | { mode: "discount"; percent: number };
+
+export interface Bundle {
+  items: BundleItem[];
+  pricing: BundlePricing;
+}
+
+export interface BundleContent extends BundleItem {
+  name: string;
+  slug: string;
+  colour: string;
+  size: string;
+  hex: string;
+  garment: Garment;
+  image?: string;
+  unitPrice: number; // current selling price of one unit, bought separately
+  available: boolean;
+}
+
 export type ProductStatus = "active" | "draft" | "archived";
 
 /** A scheduled or open-ended sale price. Times are ISO UTC; missing = unbounded. */
@@ -64,7 +91,7 @@ export interface Product {
   name: string;
   department: DepartmentSlug;
   category: string;
-  group: "Eastern" | "Western" | "Accessories";
+  group: "Eastern" | "Western" | "Accessories" | "Gifts";
   garment: Garment;
   /** Regular price. */
   basePrice: number;
@@ -77,6 +104,12 @@ export interface Product {
   sizes: string[];
   variants: Variant[];
   images?: ProductImage[];
+  /** Set on gift boxes (Tohfa-e-Khaas): the fixed items inside and how the box is priced. */
+  bundle?: Bundle;
+  /** Derived for gift boxes: the items, priced and stocked as of now. */
+  bundleContents?: BundleContent[];
+  /** Derived for gift boxes: what the items cost if bought separately. */
+  bundleValue?: number;
   fabric: string;
   fit: string;
   care: string[];
@@ -126,6 +159,8 @@ export interface OrderItem {
   garment?: Garment;
   hex?: string;
   image?: string;
+  /** Gift boxes: what was packed, so it can be picked, shipped and restocked. */
+  components?: { sku: string; name: string; colour: string; size: string; qty: number }[];
 }
 
 export interface AuditEntry {

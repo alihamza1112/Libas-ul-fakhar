@@ -44,6 +44,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
         <div className="flex flex-wrap gap-2">
           <a href="/api/admin/products.csv" className="btn btn-secondary min-h-10 px-4">Export CSV</a>
           <Link href="/admin/products/import" className="btn btn-secondary min-h-10 px-4">Import CSV</Link>
+          <Link href="/admin/products/new?type=gift" className="btn btn-secondary min-h-10 px-4">Add gift box</Link>
           <Link href="/admin/products/new" className="btn btn-primary min-h-10 px-4">Add product</Link>
         </div>
       </div>

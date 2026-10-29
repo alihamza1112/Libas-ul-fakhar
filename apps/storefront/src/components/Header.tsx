@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { DEPARTMENTS } from "@/lib/catalog";
+import { DEPARTMENTS, GIFTS } from "@/lib/catalog";
 import { formatPKR } from "@/lib/pricing";
 import { POPULAR_SEARCHES, searchProducts } from "@/lib/search";
 import { SITE } from "@/lib/site";
@@ -269,6 +269,7 @@ function MegaMenu({ dept }: { dept: string }) {
   const d = DEPARTMENTS.find((x) => x.slug === dept)!;
   const groups = ["Eastern", "Western", "Accessories"] as const;
   const { products } = useCatalog();
+  if (dept === GIFTS) return <GiftMenu />;
   const featured = products.filter((p) => p.department === dept).sort((a, b) => a.salesRank - b.salesRank)[0];
   return (
     <div className="absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block">
@@ -298,6 +299,38 @@ function MegaMenu({ dept }: { dept: string }) {
             <p className="mt-2 font-display text-lg">{d.tagline}</p>
             <p className="text-xs uppercase tracking-[0.16em] text-muted group-hover:text-ink">Shop {d.label} →</p>
           </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Mega-menu panel for Tohfa-e-Khaas: the gift boxes themselves. */
+function GiftMenu() {
+  const { products } = useCatalog();
+  const boxes = products.filter((p) => p.department === GIFTS && p.bundle).sort((a, b) => a.salesRank - b.salesRank).slice(0, 4);
+  return (
+    <div className="absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block">
+      <div className="mx-auto grid max-w-7xl grid-cols-[220px_1fr] gap-10 px-8 py-8">
+        <div>
+          <p className="eyebrow mb-3">Tohfa-e-Khaas</p>
+          <p className="font-display text-2xl leading-tight">Curated gift boxes, ready to give</p>
+          <Link href="/collections/gifts" className="mt-4 inline-block text-xs uppercase tracking-[0.16em] underline underline-offset-4">All gift boxes →</Link>
+        </div>
+        {boxes.length ? (
+          <ul className="grid grid-cols-4 gap-6">
+            {boxes.map((b) => (
+              <li key={b.id}>
+                <Link href={`/products/${b.slug}`} className="group block">
+                  <ProductPhoto product={b} colour={b.colours[0]?.name} sizes="220px" className="aspect-[4/5] w-full" />
+                  <p className="mt-2 text-sm group-hover:underline">{b.name}</p>
+                  <p className="text-xs text-muted">{b.bundleContents?.length ?? 0} items · {formatPKR(b.price)}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="self-center text-sm text-muted">New gift boxes are coming soon.</p>
         )}
       </div>
     </div>

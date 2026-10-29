@@ -9,6 +9,7 @@ import { materialize, salePriceForPercent } from "../productPricing";
 import { nextProductId, validateProduct, type FieldErrors, type ProductInput } from "../productInput";
 import { planImport, type ImportPlan } from "../productCsv";
 import { imagesFor, removedImageIds } from "../productImages";
+import { bundleTakes, resolveBundles } from "../bundles";
 import { deleteMedia, deleteOrphans, mediaExists } from "./media";
 import { cachedPool, isUniqueViolation, live, tx } from "./db";
 import { insertOrder, selectAudit, selectOrders, selectProducts, writeAudit, writeProduct } from "./rows";
@@ -31,27 +32,32 @@ export async function readProducts(): Promise<Product[]> {
   return selectProducts(cachedPool());
 }
 
+/** Prices everything for `now`, then derives gift boxes' price, stock and contents. */
+export function priceCatalogue(products: Product[], now: number): Product[] {
+  return resolveBundles(products.map((p) => materialize(p, now)));
+}
+
 /** Live view for the back office: every status, priced as of now. */
 export async function adminListProducts(): Promise<Product[]> {
-  const products = await selectProducts(await live());
-  const now = Date.now();
-  return products.map((p) => materialize(p, now));
+  return priceCatalogue(await selectProducts(await live()), Date.now());
 }
 
 export async function adminGetProduct(id: string): Promise<Product | undefined> {
-  const [p] = await selectProducts(await live(), "WHERE p.id = $1", [id]);
-  return p ? materialize(p, Date.now()) : undefined;
+  return (await adminListProducts()).find((p) => p.id === id);
+}
+
+async function activeCatalogue(db: Parameters<typeof selectProducts>[0], now: number): Promise<Product[]> {
+  return priceCatalogue(await selectProducts(db, "WHERE p.status = 'active'"), now);
 }
 
 /** Live price and stock for bag lines, used to re-validate before checkout (FR-CART-06). */
 export async function liveLines(lines: CartLine[]) {
   const wanted = lines.slice(0, 30);
-  const products = await selectProducts(await live(), "WHERE p.id = ANY($1::text[]) AND p.status = 'active'", [wanted.map((l) => String(l.productId))]);
-  const now = Date.now();
+  const products = await activeCatalogue(await live(), Date.now());
   return wanted.map((l) => {
     const p = products.find((x) => x.id === l.productId);
     const v = p?.variants.find((x) => x.sku === l.sku);
-    return { sku: l.sku, stock: p && v ? (p.preOrder ? 99 : v.stock) : 0, price: p ? materialize(p, now).price : 0 };
+    return { sku: l.sku, stock: p && v ? (p.preOrder ? 99 : v.stock) : 0, price: p ? p.price : 0 };
   });
 }
 
@@ -248,19 +254,25 @@ export async function createOrder(input: CreateOrderInput): Promise<{ order: Ord
 
   try {
     const order = await tx(async (c) => {
-      // Re-price from the live catalogue
-      const products = await selectProducts(c, "WHERE p.id = ANY($1::text[]) AND p.status = 'active'", [lines.map((l) => l.productId)]);
+      // Re-price from the live catalogue (gift boxes need their items too)
       const now = Date.now();
+      const products = await activeCatalogue(c, now);
       const items = lines.map((l) => {
-        const stored = products.find((x) => x.id === l.productId);
-        const v = stored?.variants.find((x) => x.sku === l.sku);
-        if (!stored || !v) throw new OrderError("An item in your bag is no longer available.");
-        const p = materialize(stored, now);
+        const p = products.find((x) => x.id === l.productId);
+        const v = p?.variants.find((x) => x.sku === l.sku);
+        if (!p || !v) throw new OrderError("An item in your bag is no longer available.");
         const photo = imagesFor(p, v.colour)[0]?.url;
+        const contents = p.bundle ? p.bundleContents ?? [] : undefined;
+        if (contents?.some((x) => !x.available)) throw new OrderError(`${p.name} is not available right now: one of its items has been removed.`);
         return {
-          preOrder: !!p.preOrder,
-          label: `${p.name} (${v.colour}, ${v.size})`,
-          item: { productId: p.id, sku: v.sku, name: p.name, size: v.size, colour: v.colour, unitPrice: p.price, qty: l.qty, garment: p.garment, hex: p.colours.find((x) => x.name === v.colour)?.hex, ...(photo ? { image: photo } : {}) },
+          label: contents ? p.name : `${p.name} (${v.colour}, ${v.size})`,
+          // A gift box takes stock from each item inside it, not from itself
+          takes: p.bundle ? bundleTakes(p.bundle, l.qty) : [{ sku: v.sku, qty: l.qty }],
+          item: {
+            productId: p.id, sku: v.sku, name: p.name, size: v.size, colour: v.colour, unitPrice: p.price, qty: l.qty, garment: p.garment,
+            hex: p.colours.find((x) => x.name === v.colour)?.hex, ...(photo ? { image: photo } : {}),
+            ...(contents ? { components: contents.map((x) => ({ sku: x.sku, name: x.name, colour: x.colour, size: x.size, qty: x.qty })) } : {}),
+          },
         };
       });
 
@@ -269,16 +281,19 @@ export async function createOrder(input: CreateOrderInput): Promise<{ order: Ord
 
       // Atomic stock decrement: the row lock plus `stock >= qty` means concurrent
       // orders (even on different servers) can never oversell the last unit.
-      for (const { item, preOrder, label } of items) {
-        if (preOrder) {
-          await c.query("UPDATE variants SET stock = GREATEST(stock - $2, 0) WHERE sku = $1", [item.sku, item.qty]);
-          continue;
-        }
-        const { rowCount } = await c.query("UPDATE variants SET stock = stock - $2 WHERE sku = $1 AND stock >= $2", [item.sku, item.qty]);
-        if (!rowCount) {
-          const { rows } = await c.query<{ stock: number }>("SELECT stock FROM variants WHERE sku = $1", [item.sku]);
-          const left = rows[0]?.stock ?? 0;
-          throw new OrderError(left === 0 ? `${label} just sold out.` : `Only ${left} left of ${label}.`);
+      const preOrderSkus = new Set(products.filter((p) => p.preOrder).flatMap((p) => p.variants.map((v) => v.sku)));
+      for (const { takes, label } of items) {
+        for (const t of takes) {
+          if (preOrderSkus.has(t.sku)) {
+            await c.query("UPDATE variants SET stock = GREATEST(stock - $2, 0) WHERE sku = $1", [t.sku, t.qty]);
+            continue;
+          }
+          const { rowCount } = await c.query("UPDATE variants SET stock = stock - $2 WHERE sku = $1 AND stock >= $2", [t.sku, t.qty]);
+          if (!rowCount) {
+            const { rows } = await c.query<{ stock: number }>("SELECT stock FROM variants WHERE sku = $1", [t.sku]);
+            const left = rows[0]?.stock ?? 0;
+            throw new OrderError(takes.length > 1 || left === 0 ? `${label} just sold out.` : `Only ${left} left of ${label}.`);
+          }
         }
       }
 
@@ -332,8 +347,13 @@ export async function updateOrderStatus(number: string, to: OrderStatus, by: str
     if (!rows[0]) throw new OrderError("Order not found.");
     if (!canTransition(rows[0].status, to)) throw new OrderError(`Cannot move an order from ${rows[0].status} to ${to}.`);
     if (restocks(to)) {
-      const { rows: items } = await c.query<{ sku: string; qty: number }>("SELECT sku, qty FROM order_items WHERE order_number = $1", [number]);
-      for (const it of items) {
+      const { rows: items } = await c.query<{ sku: string; qty: number; components: { sku: string; qty: number }[] | null }>(
+        "SELECT sku, qty, components FROM order_items WHERE order_number = $1",
+        [number],
+      );
+      // Gift boxes go back to stock as their items
+      const returns = items.flatMap((it) => (it.components ? it.components.map((x) => ({ sku: x.sku, qty: x.qty * it.qty })) : [{ sku: it.sku, qty: it.qty }]));
+      for (const it of returns) {
         const { rowCount } = await c.query("UPDATE variants SET stock = stock + $2 WHERE sku = $1", [it.sku, it.qty]);
         if (!rowCount) await writeAudit(c, by, "stock.restock_skipped", number, `${it.sku} no longer exists; ${it.qty} unit(s) not restocked`);
       }

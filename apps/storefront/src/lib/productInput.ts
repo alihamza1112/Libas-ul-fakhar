@@ -1,4 +1,5 @@
-import { DEPARTMENTS, GARMENTS, slugify } from "./catalog.ts";
+import { DEPARTMENTS, GARMENTS, GIFTS, slugify } from "./catalog.ts";
+import { bundleSku, discountedBundlePrice, GIFT_BOX_COLOUR, GIFT_BOX_SIZE, validateBundle, type BundleInput } from "./bundles.ts";
 import { pktLocalToIso } from "./productPricing.ts";
 import { normaliseImages } from "./productImages.ts";
 import type { Colour, DepartmentSlug, Garment, Product, ProductImage, ProductStatus, Variant } from "./types";
@@ -38,6 +39,8 @@ export interface ProductInput {
   variants: VariantInput[];
   /** Omitted (e.g. CSV import) = keep the product's current photos. */
   images?: ProductImage[];
+  /** Gift boxes (Tohfa-e-Khaas) only. Omitted = keep the current contents. */
+  bundle?: BundleInput;
 }
 
 export type FieldErrors = Record<string, string>;
@@ -101,7 +104,16 @@ export function validateProduct(input: ProductInput, others: Product[], current:
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120) e.slug = "Use lowercase letters, numbers and hyphens.";
   else if (others.some((p) => p.slug === slug)) e.slug = "Another product already uses this URL.";
 
-  const base = toRupees(input.basePrice);
+  // Gift boxes: contents are validated against the rest of the catalogue
+  const isBox = dept?.slug === GIFTS;
+  const boxInput: BundleInput | undefined =
+    input.bundle ?? (current?.bundle ? { items: current.bundle.items, mode: current.bundle.pricing.mode, percent: current.bundle.pricing.mode === "discount" ? current.bundle.pricing.percent : undefined } : undefined);
+  const box = isBox ? validateBundle(boxInput, others) : undefined;
+  if (box && !box.ok) e.bundle = box.error;
+  const discountBox = box?.ok && box.bundle.pricing.mode === "discount" ? box : undefined;
+
+  // Discount-mode boxes get their price from the items, so no price is typed
+  const base = discountBox ? Math.round(discountedBundlePrice(discountBox.regularValue, (discountBox.bundle.pricing as { percent: number }).percent) / 100) : toRupees(input.basePrice);
   if (base === undefined || !Number.isInteger(base) || base < 1 || base > MAX_RUPEES) e.basePrice = "Enter a whole-rupee price between 1 and 1,000,000.";
 
   const salePrice = toRupees(input.salePrice);
@@ -116,16 +128,17 @@ export function validateProduct(input: ProductInput, others: Product[], current:
   if (startsAt === null) e.saleStartsAt = "Invalid start date.";
   if (endsAt === null) e.saleEndsAt = "Invalid end date.";
   if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) e.saleEndsAt = "Sale must end after it starts.";
+  if (discountBox && salePrice !== undefined) e.salePrice = "A box priced by % discount can't also have a sale price. Use a fixed price instead.";
 
-  const fabric = (input.fabric ?? "").trim();
+  const fabric = (input.fabric ?? "").trim() || (isBox ? "Assorted" : "");
   if (!fabric || fabric.length > 80) e.fabric = "Fabric is required (max 80 characters).";
   const fit = (input.fit ?? "").trim() || "Regular";
   const description = (input.description ?? "").trim();
   if (description.length < 20 || description.length > 2000) e.description = "Description must be 20–2,000 characters.";
 
-  // Colours and sizes
-  const colours: Colour[] = [];
-  for (const c of input.colours ?? []) {
+  // Colours and sizes (a gift box is a single "Gift box / One Size" unit)
+  const colours: Colour[] = isBox ? [GIFT_BOX_COLOUR] : [];
+  for (const c of isBox ? [] : input.colours ?? []) {
     const nm = (c.name ?? "").trim();
     if (!nm) continue;
     if (colours.some((x) => x.name.toLowerCase() === nm.toLowerCase())) e.colours = `Colour "${nm}" is listed twice.`;
@@ -134,7 +147,7 @@ export function validateProduct(input: ProductInput, others: Product[], current:
   }
   if (!colours.length && !e.colours) e.colours = "Add at least one colour.";
 
-  const sizes = Array.from(new Set((input.sizes ?? []).map((s) => s.trim()).filter(Boolean)));
+  const sizes = isBox ? [GIFT_BOX_SIZE] : Array.from(new Set((input.sizes ?? []).map((s) => s.trim()).filter(Boolean)));
   if (!sizes.length) e.sizes = "Add at least one size.";
   if (sizes.some((s) => s.length > 12)) e.sizes = "Sizes must be 12 characters or fewer.";
 
@@ -143,7 +156,9 @@ export function validateProduct(input: ProductInput, others: Product[], current:
   const otherSkus = new Set(others.flatMap((p) => p.variants.map((v) => v.sku)));
   const seen = new Set<string>();
   const variants: Variant[] = [];
-  for (const col of colours) {
+  // A box's own stock is derived from its items, so its single variant holds 0
+  if (isBox) variants.push({ sku: bundleSku(id), size: GIFT_BOX_SIZE, colour: GIFT_BOX_COLOUR.name, stock: 0 });
+  else for (const col of colours) {
     for (const size of sizes) {
       const vin = (input.variants ?? []).find((v) => v.colour.trim().toLowerCase() === col.name.toLowerCase() && v.size.trim() === size);
       const stock = Number(vin?.stock ?? 0);
@@ -185,6 +200,7 @@ export function validateProduct(input: ProductInput, others: Product[], current:
     sizes,
     variants,
     ...(images.length ? { images } : {}),
+    ...(box?.ok ? { bundle: box.bundle } : {}),
     fabric,
     fit,
     care: toList(input.care, /\r?\n|\|/).slice(0, 10),
@@ -226,5 +242,8 @@ export function toInput(p: Product): ProductInput {
     sizes: p.sizes,
     variants: p.variants.map((v) => ({ colour: v.colour, size: v.size, sku: v.sku, stock: v.stock })),
     images: p.images ?? [],
+    ...(p.bundle
+      ? { bundle: { items: p.bundle.items, mode: p.bundle.pricing.mode, percent: p.bundle.pricing.mode === "discount" ? p.bundle.pricing.percent : undefined } }
+      : {}),
   };
 }

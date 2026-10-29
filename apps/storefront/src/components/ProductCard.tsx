@@ -126,11 +126,18 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             ))}
           </div>
         )}
+        {p.bundleContents ? (
+          <p className="text-[11px] text-muted">
+            Gift box · {p.bundleContents.reduce((s, c) => s + c.qty, 0)} pieces
+            {p.bundleValue !== undefined && p.bundleValue > p.price && <> · save {formatPKR(p.bundleValue - p.price)}</>}
+          </p>
+        ) : (
         <p className="flex flex-wrap gap-1 text-[11px] text-muted" aria-label="Sizes">
           {variants.map((v) => (
             <span key={v.sku} className={v.stock === 0 && !p.preOrder ? "line-through opacity-50" : ""}>{v.size}</span>
           ))}
         </p>
+        )}
       </div>
     </article>
   );

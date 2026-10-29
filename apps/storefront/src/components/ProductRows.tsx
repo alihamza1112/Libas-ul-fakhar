@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DEPARTMENTS } from "@/lib/catalog";
+import { CLOTHING_DEPARTMENTS } from "@/lib/catalog";
 import type { Product } from "@/lib/types";
 import { ProductCard } from "./ProductCard";
 import { useStore } from "./StoreProvider";
@@ -50,7 +50,7 @@ const TABS = [
 export function DepartmentTabs({ products }: { products: Product[] }) {
   const [dept, setDept] = useState<string>("men");
   const [tab, setTab] = useState<string>("sale");
-  const d = DEPARTMENTS.find((x) => x.slug === dept)!;
+  const d = CLOTHING_DEPARTMENTS.find((x) => x.slug === dept)!;
   const tabs = TABS.filter((t) => t.key === "sale" || d.categories.some((c) => c.group === t.key));
   const list = products
     .filter((p) => p.department === dept && (tab === "sale" ? !!p.compareAt : p.group === tab))
@@ -62,7 +62,7 @@ export function DepartmentTabs({ products }: { products: Product[] }) {
       <div className="mb-6 flex flex-col items-center gap-4 text-center">
         <p className="eyebrow">Shop by department</p>
         <div className="flex gap-6" role="tablist" aria-label="Department">
-          {DEPARTMENTS.map((x) => (
+          {CLOTHING_DEPARTMENTS.map((x) => (
             <button
               key={x.slug}
               role="tab"

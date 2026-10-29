@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { ProductArt } from "./ProductArt";
 import { useEffect, useRef, useState } from "react";
 import { CITIES, deliveryEstimate } from "@/lib/cities";
 import { chartFor, recommendSize } from "@/lib/sizeGuide";
@@ -78,6 +80,33 @@ function Gallery({ product, colour }: { product: Product; colour: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** What's inside a Tohfa-e-Khaas gift box; sizes and colours are fixed by the store. */
+function BoxContentsList({ contents }: { contents: NonNullable<Product["bundleContents"]> }) {
+  return (
+    <section className="bg-cream p-4" aria-label="In this gift box">
+      <p className="eyebrow mb-3">In this gift box · {contents.reduce((s, c) => s + c.qty, 0)} pieces</p>
+      <ul className="divide-y divide-line">
+        {contents.map((c) => (
+          <li key={c.sku} className="flex items-center gap-3 py-2">
+            <span className="relative h-16 w-13 shrink-0 overflow-hidden bg-ivory">
+              {c.image ? <Image src={c.image} alt="" fill sizes="52px" className="object-cover" /> : <ProductArt garment={c.garment} hex={c.hex} className="h-full w-full" />}
+            </span>
+            <span className="min-w-0 flex-1 text-sm">
+              {c.slug ? <Link href={`/products/${c.slug}`} className="hover:underline">{c.name}</Link> : c.name}
+              <span className="block text-xs text-muted">
+                {c.colour}{c.size && c.size !== "One Size" ? ` · Size ${c.size}` : ""}{c.qty > 1 ? ` · ×${c.qty}` : ""}
+                {!c.available && <span className="text-sale"> · currently unavailable</span>}
+              </span>
+            </span>
+            <span className="text-xs text-muted tabular-nums">{formatPKR(c.unitPrice * c.qty)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-muted">Sizes and colours are chosen by our stylists and packed together in a Libas-ul-Fakhar gift box.</p>
+    </section>
   );
 }
 
@@ -235,10 +264,18 @@ export function ProductDetail({ p, initialColour }: { p: Product; initialColour?
             </a>
           )}
           <PriceBlock price={p.price} compareAt={p.compareAt} size="lg" />
+          {p.bundle && p.bundleValue !== undefined && p.bundleValue > p.price && (
+            <p className="text-sm">
+              Bought separately <s className="text-muted">{formatPKR(p.bundleValue)}</s> · <span className="text-sale">you save {formatPKR(p.bundleValue - p.price)}</span>
+            </p>
+          )}
           <p className="text-xs text-muted">Inclusive of all taxes</p>
         </div>
 
+        {p.bundleContents && <BoxContentsList contents={p.bundleContents} />}
+
         <div ref={buyRef} className="space-y-5">
+          {!p.bundle && (
           <div>
             <p className="mb-2 text-sm">Colour: <span className="text-muted">{colour.name}</span></p>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Colour">
@@ -258,6 +295,7 @@ export function ProductDetail({ p, initialColour }: { p: Product; initialColour?
               })}
             </div>
           </div>
+          )}
 
           {!oneSize && (
             <div>

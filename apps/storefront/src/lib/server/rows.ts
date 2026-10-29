@@ -43,6 +43,7 @@ interface ProductRow {
   sales_rank: number;
   rating: number;
   reviews: Product["reviews"];
+  bundle: Product["bundle"] | null;
   created_at: Date;
   updated_at: Date | null;
   variants: Product["variants"];
@@ -71,6 +72,7 @@ function rowToProduct(r: ProductRow): Product {
     sizes: r.sizes,
     variants: r.variants,
     ...(r.images.length ? { images: r.images } : {}),
+    ...(r.bundle ? { bundle: r.bundle } : {}),
     fabric: r.fabric,
     fit: r.fit,
     care: r.care,
@@ -96,8 +98,8 @@ export async function writeProduct(db: Db, p: Product): Promise<void> {
   await db.query(
     `INSERT INTO products (id, slug, status, name, department, category, product_group, garment, base_price, sale_price,
        sale_starts_at, sale_ends_at, colours, sizes, images, fabric, fit, care, description, model_info, tags,
-       pre_order_dispatch, sales_rank, rating, reviews, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       pre_order_dispatch, sales_rank, rating, reviews, created_at, updated_at, bundle)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
      ON CONFLICT (id) DO UPDATE SET
        slug = EXCLUDED.slug, status = EXCLUDED.status, name = EXCLUDED.name, department = EXCLUDED.department,
        category = EXCLUDED.category, product_group = EXCLUDED.product_group, garment = EXCLUDED.garment,
@@ -105,13 +107,14 @@ export async function writeProduct(db: Db, p: Product): Promise<void> {
        sale_ends_at = EXCLUDED.sale_ends_at, colours = EXCLUDED.colours, sizes = EXCLUDED.sizes, images = EXCLUDED.images,
        fabric = EXCLUDED.fabric, fit = EXCLUDED.fit, care = EXCLUDED.care, description = EXCLUDED.description,
        model_info = EXCLUDED.model_info, tags = EXCLUDED.tags, pre_order_dispatch = EXCLUDED.pre_order_dispatch,
-       sales_rank = EXCLUDED.sales_rank, rating = EXCLUDED.rating, reviews = EXCLUDED.reviews, updated_at = EXCLUDED.updated_at`,
+       sales_rank = EXCLUDED.sales_rank, rating = EXCLUDED.rating, reviews = EXCLUDED.reviews, updated_at = EXCLUDED.updated_at,
+       bundle = EXCLUDED.bundle`,
     [
       p.id, p.slug, p.status, p.name, p.department, p.category, p.group, p.garment, p.basePrice,
       p.sale?.price ?? null, p.sale?.startsAt ?? null, p.sale?.endsAt ?? null,
       JSON.stringify(p.colours), p.sizes, JSON.stringify(p.images ?? []), p.fabric, p.fit, p.care, p.description,
       p.modelInfo ?? null, p.tags, p.preOrder?.dispatch ?? null, p.salesRank, p.rating, JSON.stringify(p.reviews),
-      p.createdAt, p.updatedAt ?? null,
+      p.createdAt, p.updatedAt ?? null, p.bundle ? JSON.stringify(p.bundle) : null,
     ],
   );
   const skus = p.variants.map((v) => v.sku);
@@ -133,7 +136,8 @@ export async function writeProduct(db: Db, p: Product): Promise<void> {
 const ORDER_SELECT = `
   SELECT o.*,
     COALESCE((SELECT json_agg(json_build_object('productId', i.product_id, 'sku', i.sku, 'name', i.name, 'size', i.size,
-                'colour', i.colour, 'unitPrice', i.unit_price, 'qty', i.qty, 'garment', i.garment, 'hex', i.hex, 'image', i.image)
+                'colour', i.colour, 'unitPrice', i.unit_price, 'qty', i.qty, 'garment', i.garment, 'hex', i.hex, 'image', i.image,
+                'components', i.components)
               ORDER BY i.position) FROM order_items i WHERE i.order_number = o.number), '[]') AS items,
     COALESCE((SELECT json_agg(json_build_object('status', h.status, 'at', h.at, 'by', h.by, 'note', h.note) ORDER BY h.id)
               FROM order_history h WHERE h.order_number = o.number), '[]') AS history
@@ -189,9 +193,9 @@ export async function insertOrder(db: Db, o: Order): Promise<void> {
   );
   for (const [i, it] of o.items.entries()) {
     await db.query(
-      `INSERT INTO order_items (order_number, position, product_id, sku, name, size, colour, unit_price, qty, garment, hex, image)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [o.number, i, it.productId, it.sku, it.name, it.size, it.colour, it.unitPrice, it.qty, it.garment ?? null, it.hex ?? null, it.image ?? null],
+      `INSERT INTO order_items (order_number, position, product_id, sku, name, size, colour, unit_price, qty, garment, hex, image, components)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [o.number, i, it.productId, it.sku, it.name, it.size, it.colour, it.unitPrice, it.qty, it.garment ?? null, it.hex ?? null, it.image ?? null, it.components ? JSON.stringify(it.components) : null],
     );
   }
   for (const h of o.history) {

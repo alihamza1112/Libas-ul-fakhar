@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DEPARTMENTS, isNew } from "@/lib/catalog";
+import { CLOTHING_DEPARTMENTS, GIFTS, isNew } from "@/lib/catalog";
 import { getCatalog } from "@/lib/server/catalog";
 import { formatPKR } from "@/lib/pricing";
 import { ProductArt } from "@/components/ProductArt";
@@ -23,6 +23,7 @@ export default async function Home() {
   const bestSellers = [...products].sort((a, b) => a.salesRank - b.salesRank).slice(0, 8);
   const look = LOOK.map((s) => products.find((p) => p.slug === s)).filter((p) => p !== undefined);
   const lookTotal = look.reduce((s, p) => s + p.price, 0);
+  const giftBoxes = products.filter((p) => p.department === GIFTS && p.bundle).sort((a, b) => a.salesRank - b.salesRank).slice(0, 4);
 
   return (
     <>
@@ -72,8 +73,8 @@ export default async function Home() {
       {/* Department tiles (FR-HOME-02) */}
       <section className="mx-auto max-w-7xl px-4 py-14">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
-          {DEPARTMENTS.map((d) => {
-            const art = TILE_ART[d.slug];
+          {CLOTHING_DEPARTMENTS.map((d) => {
+            const art = TILE_ART[d.slug as keyof typeof TILE_ART];
             return (
               <Link key={d.slug} href={`/collections/${d.slug}`} className="group relative block overflow-hidden">
                 <ProductArt garment={art.garment} hex={art.hex} className="aspect-[4/5] w-full transition-transform duration-500 group-hover:scale-[1.03]" title={`${d.label} collection`} />
@@ -88,6 +89,17 @@ export default async function Home() {
       </section>
 
       <DepartmentTabs products={products} />
+
+      {/* Tohfa-e-Khaas gift boxes */}
+      {giftBoxes.length > 0 && (
+        <section className="texture py-14">
+          <div className="mx-auto max-w-7xl px-4">
+            <SectionHead eyebrow="Ready to give" title="Tohfa-e-Khaas" href="/collections/gifts" cta="All gift boxes" />
+            <p className="-mt-3 mb-6 max-w-xl text-sm text-ink-soft">Curated boxes of our finest pieces, packed together and priced as one, for Eid, weddings and every occasion worth celebrating.</p>
+            <ProductRail products={giftBoxes} />
+          </div>
+        </section>
+      )}
 
       <section className="mx-auto max-w-7xl px-4 py-10">
         <SectionHead eyebrow="Just landed" title="New arrivals" href="/collections/new-arrivals" />

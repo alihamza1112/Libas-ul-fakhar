@@ -66,7 +66,18 @@ export const DEPARTMENTS: Department[] = [
       { slug: "trousers", label: "Trousers", group: "Western" },
     ],
   },
+  {
+    slug: "gifts",
+    label: "Tohfa-e-Khaas",
+    tagline: "Curated gift boxes, ready to give",
+    categories: [{ slug: "gift-box", label: "Gift Boxes", group: "Gifts" }],
+  },
 ];
+
+export const GIFTS: DepartmentSlug = "gifts";
+
+/** The clothing departments (everything except Tohfa-e-Khaas gift boxes). */
+export const CLOTHING_DEPARTMENTS = DEPARTMENTS.filter((d) => d.slug !== GIFTS);
 
 const C: Record<string, Colour> = {
   ivory: { name: "Ivory", hex: "#F3EBDD" },
@@ -315,6 +326,7 @@ export const GARMENTS: { value: Garment; label: string }[] = [
   { value: "shawl", label: "Shawl / dupatta" },
   { value: "cap", label: "Cap" },
   { value: "belt", label: "Belt" },
+  { value: "giftbox", label: "Gift box" },
 ];
 
 export const SIZE_PRESETS: { label: string; sizes: string[] }[] = [

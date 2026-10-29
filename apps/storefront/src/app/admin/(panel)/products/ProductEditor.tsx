@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { COLOUR_SWATCHES, DEPARTMENTS, GARMENTS, SIZE_PRESETS, slugify } from "@/lib/catalog";
+import { COLOUR_SWATCHES, DEPARTMENTS, GARMENTS, GIFTS, SIZE_PRESETS, slugify } from "@/lib/catalog";
+import { discountedBundlePrice } from "@/lib/bundles";
 import { formatPKR } from "@/lib/pricing";
 import { formatPkt, isoToPktLocal, pktLocalToIso, saleState, salePriceForPercent } from "@/lib/productPricing";
 import { autoSku, type FieldErrors, type ProductInput } from "@/lib/productInput";
-import type { Garment } from "@/lib/types";
+import type { BundleItem, Garment } from "@/lib/types";
 import Image from "next/image";
 import { ProductArt } from "@/components/ProductArt";
 import { PhotoManager, type EditorImage } from "./PhotoManager";
+import { BoxContents, type BoxChoice } from "./BoxContents";
 import { saveProductAction } from "../../products-actions";
 
 interface ColourRow {
@@ -28,7 +30,7 @@ const SALE_BADGE: Record<string, string> = {
   ended: "bg-stone-200 text-muted",
 };
 
-export function ProductEditor({ initial, productId, previewNow }: { initial: ProductInput; productId?: string; previewNow: number }) {
+export function ProductEditor({ initial, productId, previewNow, boxChoices = [] }: { initial: ProductInput; productId?: string; previewNow: number; boxChoices?: BoxChoice[] }) {
   const router = useRouter();
   const [saving, startSaving] = useTransition();
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -73,6 +75,12 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
     return m;
   });
   const [showSkus, setShowSkus] = useState(false);
+  // Gift boxes (Tohfa-e-Khaas)
+  const [boxItems, setBoxItems] = useState<BundleItem[]>(() =>
+    (initial.bundle?.items ?? []).map((it) => ({ productId: String(it.productId), sku: String(it.sku), qty: Number(it.qty) || 1 })),
+  );
+  const [boxMode, setBoxMode] = useState<"fixed" | "discount">(initial.bundle?.mode === "discount" ? "discount" : "fixed");
+  const [boxPercent, setBoxPercent] = useState(initial.bundle?.percent != null ? String(initial.bundle.percent) : "10");
   const [fillAll, setFillAll] = useState("");
 
   const dept = DEPARTMENTS.find((d) => d.slug === f.department);
@@ -80,7 +88,11 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
     const value = e.target.value;
     setF((prev) => {
       const next = { ...prev, [k]: value };
-      if (k === "department") next.category = DEPARTMENTS.find((d) => d.slug === value)?.categories[0]?.slug ?? "";
+      if (k === "department") {
+        next.category = DEPARTMENTS.find((d) => d.slug === value)?.categories[0]?.slug ?? "";
+        if (value === GIFTS) next.garment = "giftbox";
+        else if (prev.garment === "giftbox") next.garment = "kurta";
+      }
       if (!slugTouched && (k === "name" || k === "department")) next.slug = next.name ? `${slugify(next.name)}-${next.department}` : "";
       return next;
     });
@@ -92,6 +104,15 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
   const state = saleState(schedule, previewNow);
   const pct = basePaisa && salePaisa ? Math.round(((basePaisa - salePaisa) / basePaisa) * 100) : 0;
   const totalStock = useMemo(() => Object.entries(cells).filter(([k]) => colours.some((c) => k.startsWith(`${c.key}|`)) && sizes.some((s) => k.endsWith(`|${s}`))).reduce((s, [, v]) => s + (Number(v.stock) || 0), 0), [cells, colours, sizes]);
+
+  const isBox = f.department === GIFTS;
+  const choiceById = new Map(boxChoices.map((c) => [c.id, c]));
+  const boxValue = boxItems.reduce((sum, it) => sum + (choiceById.get(it.productId)?.price ?? 0) * it.qty, 0);
+  const boxPct = Math.round(Number(boxPercent));
+  const boxDiscountPrice = boxValue && boxPct >= 1 && boxPct <= 90 ? discountedBundlePrice(boxValue, boxPct) : 0;
+  const boxStock = boxItems.length
+    ? Math.min(...boxItems.map((it) => Math.floor((choiceById.get(it.productId)?.variants.find((v) => v.sku === it.sku)?.stock ?? 0) / it.qty)))
+    : 0;
 
   const cell = (c: ColourRow, size: string) => cells[`${c.key}|${size}`] ?? { sku: "", stock: "0" };
   const setCell = (c: ColourRow, size: string, patch: Partial<{ sku: string; stock: string }>) => {
@@ -114,10 +135,12 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
       colours: colours.map(({ name, hex }) => ({ name, hex })),
       sizes,
       variants: colours.flatMap((c) => sizes.map((size) => ({ colour: c.name, size, sku: cell(c, size).sku, stock: cell(c, size).stock }))),
-      // Stored grouped: each colour's photos in colour order, then shared ones
-      images: [...colours.map((c) => c.key), null].flatMap((key) =>
+      ...(isBox ? { bundle: { items: boxItems, mode: boxMode, percent: boxMode === "discount" ? boxPercent : undefined } } : {}),
+      ...(isBox && boxMode === "discount" ? { basePrice: "", salePrice: "", saleStartsAt: "", saleEndsAt: "" } : {}),
+      // Stored grouped: each colour's photos in colour order, then shared ones (a box's photos are all shared)
+      images: [...(isBox ? [] : colours.map((c) => c.key)), null].flatMap((key) =>
         images
-          .filter((img) => img.colourKey === key)
+          .filter((img) => (isBox ? key === null : img.colourKey === key))
           .map((img) => ({ id: img.id, url: img.url, width: img.width, height: img.height, colour: colours.find((c) => c.key === key)?.name || undefined, alt: img.alt?.trim() || undefined })),
       ),
     };
@@ -181,9 +204,50 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
           </div>
         </Section>
 
+        {isBox && (
+          <Section title="Box contents">
+            <BoxContents items={boxItems} onChange={setBoxItems} choices={boxChoices} />
+            <Err msg={errors.bundle} />
+          </Section>
+        )}
+
         <Section title="Pricing & sale">
+          {isBox && (
+            <div className="space-y-3">
+              <p className="text-sm">How should this box be priced?</p>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Box pricing">
+                {([["fixed", "Fixed price I set"], ["discount", "% off the items' total"]] as const).map(([m, label]) => (
+                  <label key={m} className={`flex cursor-pointer items-center gap-2 border px-3 py-2 text-sm ${boxMode === m ? "border-ink bg-white" : "border-line"}`}>
+                    <input type="radio" name="box-mode" className="accent-ink" checked={boxMode === m} onChange={() => setBoxMode(m)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {boxMode === "discount" ? (
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+                  <Field label="Discount on the items (%)" htmlFor="p-box-pct" hint="The box price follows the items: if an item goes on sale, the box gets cheaper too.">
+                    <input id="p-box-pct" className="field tabular-nums" inputMode="numeric" value={boxPercent} onChange={(e) => setBoxPercent(e.target.value.replace(/\D/g, ""))} />
+                  </Field>
+                  <p className="pb-3 text-sm">
+                    Box price now: <strong>{boxDiscountPrice ? formatPKR(boxDiscountPrice) : "—"}</strong>
+                    {boxValue > 0 && <span className="text-muted"> (items {formatPKR(boxValue)})</span>}
+                  </p>
+                </div>
+              ) : (
+                boxValue > 0 && (
+                  <p className="text-sm text-muted">
+                    Items bought separately: {formatPKR(boxValue)}
+                    {basePaisa > 0 && basePaisa < boxValue && <> · customers save <strong className="text-ink">{formatPKR(boxValue - basePaisa)}</strong></>}
+                    {basePaisa > boxValue && <span className="text-sale"> · box price is higher than the items bought separately</span>}
+                  </p>
+                )
+              )}
+            </div>
+          )}
+          {!(isBox && boxMode === "discount") && (
+          <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Regular price (Rs.) *" htmlFor="p-price">
+            <Field label={isBox ? "Box price (Rs.) *" : "Regular price (Rs.) *"} htmlFor="p-price">
               <input id="p-price" className="field tabular-nums" inputMode="numeric" value={f.basePrice} onChange={set("basePrice")} aria-invalid={!!errors.basePrice} />
               <Err msg={errors.basePrice} />
             </Field>
@@ -229,6 +293,8 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
               )}
             </div>
           )}
+          </>
+          )}
         </Section>
 
         <Section title="Details">
@@ -264,6 +330,7 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
           </Field>
         </Section>
 
+        {!isBox && (
         <Section title="Colours & sizes">
           <div>
             <p className="mb-2 text-sm">Colours *</p>
@@ -322,11 +389,14 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
           </div>
         </Section>
 
+        )}
+
         <Section title="Photos">
-          <PhotoManager images={images} onChange={setImages} colours={colours} />
+          <PhotoManager images={images} onChange={setImages} colours={isBox ? [] : colours} />
           <Err msg={errors.images} />
         </Section>
 
+        {!isBox && (
         <Section title="Stock by variant">
           {colours.length && sizes.length ? (
             <>
@@ -385,6 +455,7 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
           )}
           <Err msg={errors.variants} />
         </Section>
+        )}
       </div>
 
       <aside className="h-fit space-y-4 lg:sticky lg:top-6">
@@ -403,9 +474,13 @@ export function ProductEditor({ initial, productId, previewNow }: { initial: Pro
           </div>
           <p className="mt-3 text-sm">{f.name || "Untitled product"}</p>
           <p className="text-sm">
-            {state === "live" && salePaisa ? <><span className="font-medium text-sale">{formatPKR(salePaisa)}</span> <s className="text-muted">{formatPKR(basePaisa)}</s></> : basePaisa ? formatPKR(basePaisa) : "—"}
+            {isBox && boxMode === "discount"
+              ? boxDiscountPrice ? formatPKR(boxDiscountPrice) : "—"
+              : state === "live" && salePaisa ? <><span className="font-medium text-sale">{formatPKR(salePaisa)}</span> <s className="text-muted">{formatPKR(basePaisa)}</s></> : basePaisa ? formatPKR(basePaisa) : "—"}
           </p>
-          <p className="mt-2 text-xs text-muted">{colours.length} colour(s) · {sizes.length} size(s) · {totalStock} in stock</p>
+          <p className="mt-2 text-xs text-muted">
+            {isBox ? `Gift box · ${boxItems.length} item(s) · ${boxStock} box(es) in stock` : `${colours.length} colour(s) · ${sizes.length} size(s) · ${totalStock} in stock`}
+          </p>
         </div>
         <div className="space-y-3 bg-white p-5">
           {Object.keys(errors).length > 0 && (

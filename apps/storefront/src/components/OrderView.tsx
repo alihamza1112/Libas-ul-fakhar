@@ -57,6 +57,13 @@ export function OrderItems({ order }: { order: Order }) {
               <p>{it.name}</p>
               <p className="text-xs text-muted">{it.colour} · {it.size} · Qty {it.qty}</p>
               <p className="text-xs text-muted">SKU {it.sku}</p>
+              {it.components && (
+                <ul className="mt-1 border-s border-line ps-2 text-xs text-muted">
+                  {it.components.map((c) => (
+                    <li key={c.sku}>{c.qty * it.qty} × {c.name} · {c.colour}{c.size !== "One Size" ? ` · ${c.size}` : ""} <span className="opacity-70">({c.sku})</span></li>
+                  ))}
+                </ul>
+              )}
             </div>
             <p className="text-sm">{formatPKR(it.unitPrice * it.qty)}</p>
           </li>

@@ -116,6 +116,18 @@ const PATHS: Record<Garment, (c: string, d: string, l: string, trim: string) => 
       <ellipse cx="200" cy="332" rx="92" ry="10" fill={shade(d, -0.2)} />
     </>
   ),
+  giftbox: (c, d, l, trim) => (
+    <>
+      <path d="M96 210 L304 210 L292 440 L108 440 Z" fill={c} />
+      <path d="M96 210 L304 210 L300 262 L100 262 Z" fill={d} opacity=".35" />
+      <path d="M84 170 L316 170 L316 214 L84 214 Z" fill={l} stroke={d} strokeWidth="2" />
+      <path d="M186 170 L214 170 L214 214 L186 214 Z M188 214 L212 214 L206 440 L194 440 Z" fill={trim} />
+      <path d="M200 170 C150 110 110 140 140 168 C160 184 190 172 200 170 Z" fill={trim} />
+      <path d="M200 170 C250 110 290 140 260 168 C240 184 210 172 200 170 Z" fill={trim} />
+      <circle cx="200" cy="170" r="11" fill={d} />
+      <path d="M130 330 Q200 300 270 330" stroke={l} strokeWidth="3" fill="none" opacity=".6" />
+    </>
+  ),
   belt: (c, d, l, trim) => (
     <>
       <path d="M90 250 Q90 160 200 160 Q310 160 310 250 Q310 340 200 340 Q120 340 108 280" fill="none" stroke={c} strokeWidth="34" />
