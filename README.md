@@ -16,6 +16,8 @@ Built against the [Business & Software Requirements Document (BRD/SRS v2.0)](Lib
 | **2. Product management** | Admin product editor with colour × size stock, draft/active/archived status, scheduled sales that start and end on their own, department-wide sales, CSV import with preview and CSV export |
 | **3. Product photos** | Per-colour photo uploads with ordering, automatic rotation and metadata stripping, AVIF/WebP delivery; photos used across the store |
 | **4. Customer accounts** | Mobile OTP and Google sign-in, order history, address book, checkout prefill, wishlist sync across devices, data export and account deletion |
+| **5. Tohfa-e-Khaas gift boxes** | Curated boxes of existing pieces with sizes and colours fixed by the admin, priced at a fixed amount or a % off the items; stock follows the items inside |
+| **PostgreSQL and Docker** | Data in PostgreSQL with versioned migrations; Docker Compose setup for deployment ([DEPLOY.md](DEPLOY.md)) |
 
 Full feature list, architecture notes and the remaining roadmap are in the [app README](apps/storefront/README.md).
 
@@ -49,6 +51,17 @@ Other commands (run inside `apps/storefront`):
 | `npm run lint` | ESLint |
 | `npm run build && npm start` | Production build and server |
 
+## Deploy with Docker
+
+```bash
+cp .env.docker.example .env    # then fill in passwords and the site address
+docker compose up -d db
+docker compose build app
+docker compose up -d
+```
+
+Settings, moving existing data in, updates, backups and HTTPS are covered in [DEPLOY.md](DEPLOY.md).
+
 ## Tech
 
 Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS v4, sharp. Data is stored in PostgreSQL via node-postgres with versioned SQL migrations; product photos are stored on disk in `apps/storefront/data/uploads/` (cloud storage is a later step).
@@ -58,6 +71,7 @@ Next.js 16 (App Router, Cache Components), React 19, TypeScript, Tailwind CSS v4
 ```
 ├─ Libas-ul-Fakhar E-Commerce – BRD SRS v2.0.md   requirements
 ├─ لِبَاسُ الْفَخْرِ.png                              master logo
+├─ docker-compose.yml, DEPLOY.md                  deployment
 └─ apps/
    └─ storefront/                                  Next.js store + back office
 ```

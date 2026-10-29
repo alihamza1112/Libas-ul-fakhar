@@ -4,3 +4,6 @@ Thumbs.db
 
 # Local Claude Code settings (shared launch.json is tracked)
 .claude/settings.local.json
+
+# Docker Compose settings (secrets)
+.env

@@ -1,0 +1,66 @@
+# Libas-ul-Fakhar: PostgreSQL + storefront. Settings come from .env next to this
+# file (copy .env.docker.example). Full steps in DEPLOY.md.
+#
+#   docker compose up -d db        # 1. start the database
+#   docker compose build app       # 2. build the store (reads the catalogue from db)
+#   docker compose up -d           # 3. run; migrations apply automatically on start
+
+name: libas-ul-fakhar
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: libas
+      POSTGRES_DB: libas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # Only reachable from this machine (for the build step, backups and admin tools)
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U libas -d libas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: ./apps/storefront
+      # The build prerenders the catalogue, so it connects to the db service through
+      # its published port on this machine
+      network: host
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-923348322662}
+      secrets:
+        - source: build_database_url
+          target: database_url
+    image: libas-ul-fakhar-storefront
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://libas:${POSTGRES_PASSWORD}@db:5432/libas
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_WHATSAPP: ${NEXT_PUBLIC_WHATSAPP:-923348322662}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    volumes:
+      - uploads:/app/data/uploads
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+secrets:
+  build_database_url:
+    environment: BUILD_DATABASE_URL
+
+volumes:
+  pgdata:
+  uploads:

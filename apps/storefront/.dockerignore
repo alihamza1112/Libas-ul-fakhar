@@ -1,0 +1,12 @@
+# Keep secrets, local data and build output out of the Docker build context
+node_modules
+.next
+data
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+npm-debug.log*
+.git
+Dockerfile
+.dockerignore

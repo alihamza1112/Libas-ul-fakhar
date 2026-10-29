@@ -29,6 +29,8 @@ npm run dev                   # http://localhost:3000
 | `npm test` | Unit tests for pricing, coupons, shipping, order state machine, search, sale scheduling, product validation, CSV import/export (Node test runner) |
 | `npm run lint` | ESLint |
 
+For production with Docker (PostgreSQL + this app as containers), see [`DEPLOY.md`](../../DEPLOY.md) at the repository root.
+
 Back office: `/admin` (password = `ADMIN_PASSWORD` in `.env.local`).
 
 Test coupons: `WELCOME10` (10%, max Rs. 1,000, min Rs. 2,000), `FAKHAR500` (Rs. 500 off over Rs. 5,000), `FREESHIP`.
@@ -58,6 +60,7 @@ Test coupons: `WELCOME10` (10%, max Rs. 1,000, min Rs. 2,000), `FAKHAR500` (Rs. 
 - Dashboard: revenue, orders, AOV, COD vs prepaid, top products, low stock — FR-ADM-09
 - Orders: filter by status, search, detail, status changes through the explicit state machine (illegal moves rejected), notes, history audit trail, WhatsApp customer — FR-ADM-05, §4.12
 - Inventory: per-variant stock edit, low/out filter — FR-ADM-04
+- Tohfa-e-Khaas gift boxes (`/admin/products` → Add gift box): pick 2–12 existing pieces with fixed colour, size and quantity; price the box at a fixed amount or a % off the items' current prices. Box stock is how many full boxes the items cover; orders take stock from each item, cancellations return it, and the order keeps a packing list of the box contents
 
 **Guarantees verified**
 - Concurrent orders cannot oversell the last unit (writes are serialised); cancel/return restocks — Acceptance §9.3
@@ -78,7 +81,7 @@ src/components/     UI (design tokens in src/app/globals.css)
 ```
 
 - Money is integer paisa; formatted as `Rs. 2,499`. Admin forms and CSV use whole rupees.
-- Data lives in PostgreSQL: products and variants (stock), orders with items and status history, customers, addresses, sessions, OTPs, newsletter subscribers, back-in-stock requests and the audit log. Schema: `db/migrations/001_init.sql`. Every write runs in a transaction; catalogue edits and per-customer changes take a transaction-scoped advisory lock, and slug, SKU and order-key uniqueness are enforced by constraints.
+- Data lives in PostgreSQL: products and variants (stock), orders with items and status history, customers, addresses, sessions, OTPs, newsletter subscribers, back-in-stock requests and the audit log. Schema: `db/migrations/` (`001_init.sql`, `002_gift_boxes.sql`). Every write runs in a transaction; catalogue edits and per-customer changes take a transaction-scoped advisory lock, and slug, SKU and order-key uniqueness are enforced by constraints.
 - Stock is decremented with `UPDATE variants SET stock = stock - qty WHERE sku = … AND stock >= qty`, so concurrent orders cannot oversell, even across several servers.
 - Products are seeded from `src/lib/catalog.ts` on an empty database. Each product stores `basePrice` + optional `sale {price, startsAt, endsAt}`; the selling price is derived at read time (`src/lib/productPricing.ts`), so no job is needed to start or end a sale.
 - The storefront reads products through `getCatalog()` (`src/lib/server/catalog.ts`): a `"use cache"` read tagged `catalog`, refreshed every minute and invalidated by admin edits, orders and cancellations. Checkout always re-prices and re-checks stock live.
