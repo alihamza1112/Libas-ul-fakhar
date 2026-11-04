@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { CSV_COLUMNS } from "@/lib/productCsv";
 import { ImportForm } from "./ImportForm";
+import { PageHeader } from "../../ui";
 
 const COLUMN_HELP: [string, string][] = [
   ["handle", "Product URL handle, e.g. noor-kurta-men. Matches an existing product to update it; otherwise creates one. Required."],
@@ -16,25 +16,25 @@ const COLUMN_HELP: [string, string][] = [
 export default function ImportPage() {
   return (
     <div className="space-y-6">
-      <Link href="/admin/products" className="text-sm underline">← Products</Link>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl">Import products from CSV</h1>
-          <p className="text-sm text-muted">One row per variant. Product details only need to be on each product’s first row.</p>
-        </div>
-        <a href="/api/admin/products.csv" className="btn btn-secondary min-h-10 px-4">Download current catalogue as template</a>
-      </div>
+      <PageHeader
+        back={{ href: "/admin/products", label: "Products" }}
+        title="Import products from CSV"
+        description="One row per variant. Product details only need to be on each product’s first row."
+        actions={<a href="/api/admin/products.csv" className="btn btn-secondary">Download template</a>}
+      />
 
       <ImportForm />
 
-      <details className="bg-white p-6 text-sm">
-        <summary className="cursor-pointer font-display text-xl">Column reference</summary>
-        <p className="mt-3 font-mono text-xs text-muted">{CSV_COLUMNS.join(",")}</p>
-        <dl className="mt-4 space-y-3">
-          {COLUMN_HELP.map(([k, v]) => (
-            <div key={k}><dt className="font-mono text-xs">{k}</dt><dd className="text-ink-soft">{v}</dd></div>
-          ))}
-        </dl>
+      <details className="card disclosure text-[13px]">
+        <summary>Column reference</summary>
+        <div className="border-t border-[var(--admin-line)] px-5 py-4">
+          <p className="rounded-md bg-[var(--admin-hover)] p-3 font-mono text-[11px] text-muted">{CSV_COLUMNS.join(",")}</p>
+          <dl className="mt-4 divide-y divide-[var(--admin-line)]">
+            {COLUMN_HELP.map(([k, v]) => (
+              <div key={k} className="grid gap-1 py-2.5 sm:grid-cols-[220px_1fr]"><dt className="font-mono text-[12px]">{k}</dt><dd className="text-ink-soft">{v}</dd></div>
+            ))}
+          </dl>
+        </div>
       </details>
     </div>
   );

@@ -122,7 +122,7 @@ export function BoxContents({ items, onChange, choices }: { items: BundleItem[];
             Qty
             <input type="number" min={1} max={10} value={qty} onChange={(e) => setQty(e.target.value)} className="field mt-1 min-h-10 py-1 text-sm" />
           </label>
-          <button type="button" onClick={add} disabled={!sku} className="btn btn-primary min-h-10 px-4">Add</button>
+          <button type="button" onClick={add} disabled={!sku} className="btn btn-primary">Add</button>
         </div>
       )}
     </div>

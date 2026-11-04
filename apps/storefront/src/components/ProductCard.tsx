@@ -59,14 +59,14 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
   return (
     <article className="group relative" data-priority={priority || undefined}>
       <div className="relative overflow-hidden bg-cream">
-        <Link href={`/products/${p.slug}?colour=${encodeURIComponent(colour.name)}`} aria-label={p.name}>
-          <ProductPhoto product={p} colour={colour.name} sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw" preload={priority} className={`aspect-[4/5] w-full transition-opacity duration-200 ${hasHover ? "group-hover:opacity-0" : ""}`} />
-          {hasHover && <ProductPhoto product={p} colour={colour.name} index={1} sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw" className="absolute inset-0 aspect-[4/5] w-full opacity-0 transition-opacity duration-200 group-hover:opacity-100" />}
+        <Link href={`/products/${p.slug}?colour=${encodeURIComponent(colour.name)}`} aria-label={p.name} className="block transition-transform duration-700 ease-[var(--ease-out-soft)] group-hover:scale-[1.03]">
+          <ProductPhoto product={p} colour={colour.name} sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw" preload={priority} className={`aspect-[4/5] w-full transition-opacity duration-500 ${hasHover ? "group-hover:opacity-0" : ""}`} />
+          {hasHover && <ProductPhoto product={p} colour={colour.name} index={1} sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw" className="absolute inset-0 aspect-[4/5] w-full opacity-0 transition-opacity duration-500 group-hover:opacity-100" />}
         </Link>
         <ProductBadges p={p} stockCount={stockCount} />
         <button
           onClick={() => toggleWish(p.id)}
-          className="absolute end-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-ivory/90 hover:bg-ivory"
+          className="absolute end-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-ivory/90 transition hover:scale-110 hover:bg-ivory active:scale-95"
           aria-label={wished ? `Remove ${p.name} from wishlist` : `Add ${p.name} to wishlist`}
           aria-pressed={wished}
         >
@@ -76,7 +76,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
         {/* Quick add (FR-PLP-05) */}
         <div className="absolute inset-x-2 bottom-2 hidden md:block">
           {quick ? (
-            <div className="bg-ivory/95 p-2 shadow" onMouseLeave={() => setQuick(false)}>
+            <div className="animate-rise-in bg-ivory/95 p-2 shadow" onMouseLeave={() => setQuick(false)}>
               <p className="mb-1.5 text-center text-[10px] uppercase tracking-[0.14em] text-muted">Select size</p>
               <div className="flex flex-wrap justify-center gap-1">
                 {variants.map((v) => (
@@ -97,7 +97,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
             </div>
           ) : (
             (stockCount > 0 || p.preOrder) && (
-              <button onClick={() => setQuick(true)} className="btn btn-primary w-full translate-y-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 focus:translate-y-0 focus:opacity-100 min-h-10">
+              <button onClick={() => setQuick(true)} className="btn btn-primary w-full translate-y-2 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 focus:translate-y-0 focus:opacity-100 min-h-10">
                 Quick add
               </button>
             )
@@ -120,7 +120,7 @@ export function ProductCard({ p, priority = false }: { p: Product; priority?: bo
                 aria-label={c.name}
                 title={c.name}
                 onClick={() => setColour(c)}
-                className={`h-4 w-4 rounded-full border ${c.name === colour.name ? "ring-1 ring-ink ring-offset-2 ring-offset-ivory" : "border-line"}`}
+                className={`h-4 w-4 rounded-full border transition-shadow duration-200 ${c.name === colour.name ? "ring-1 ring-ink ring-offset-2 ring-offset-ivory" : "border-line"}`}
                 style={{ backgroundColor: c.hex }}
               />
             ))}

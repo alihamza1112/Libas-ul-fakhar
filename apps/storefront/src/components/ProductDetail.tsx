@@ -118,11 +118,11 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 grid place-items-end md:place-items-center" role="dialog" aria-modal="true" aria-label={title}>
-      <button className="absolute inset-0 bg-ink/40" aria-label="Close" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full overflow-y-auto bg-ivory p-6 md:max-w-xl">
+      <button className="absolute inset-0 animate-fade-in bg-ink/40" aria-label="Close" onClick={onClose} />
+      <div className="relative max-h-[90vh] w-full animate-[sheet-up_500ms_var(--ease-out-soft)_both] overflow-y-auto bg-ivory p-6 shadow-2xl md:max-w-xl md:animate-rise-in">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-2xl">{title}</h2>
-          <button onClick={onClose} aria-label="Close"><CloseIcon /></button>
+          <button onClick={onClose} aria-label="Close" className="transition-transform duration-300 hover:rotate-90"><CloseIcon /></button>
         </div>
         {children}
       </div>
@@ -178,10 +178,10 @@ function SizeGuide({ p, onClose, onPick }: { p: Product; onClose: () => void; on
 
 function Accordion({ title, children, open = false }: { title: string; children: React.ReactNode; open?: boolean }) {
   return (
-    <details className="group border-b border-line" open={open}>
+    <details className="accordion group border-b border-line" open={open}>
       <summary className="flex cursor-pointer list-none items-center justify-between py-4 text-sm uppercase tracking-[0.12em]">
         {title}
-        <span className="text-lg transition-transform group-open:rotate-45" aria-hidden>+</span>
+        <span className="text-lg transition-transform duration-300 group-open:rotate-45" aria-hidden>+</span>
       </summary>
       <div className="pb-5 text-sm leading-relaxed text-ink-soft">{children}</div>
     </details>

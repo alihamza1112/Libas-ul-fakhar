@@ -37,6 +37,7 @@ export async function changeStatus(_: { error?: string }, fd: FormData): Promise
   updateTag(CATALOG_TAG); // cancel/return restocks
   revalidatePath(`/admin/orders/${number}`);
   revalidatePath("/admin");
+  revalidatePath("/admin/orders");
   return { ok: true };
 }
 

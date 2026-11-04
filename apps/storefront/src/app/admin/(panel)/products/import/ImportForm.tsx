@@ -11,14 +11,14 @@ export function ImportForm() {
 
   if (state.applied && plan) {
     return (
-      <section className="space-y-4 bg-white p-6">
-        <h2 className="text-2xl">Import complete</h2>
+      <section className="card space-y-4 p-6">
+        <h2 className="text-lg">Import complete</h2>
         <p className="text-sm">
           <strong>{plan.created.length}</strong> product(s) created, <strong>{plan.updated.length}</strong> updated, <strong>{plan.variantCount}</strong> variants written from {state.fileName}. The store is updated.
         </p>
         <div className="flex gap-2">
-          <Link href="/admin/products" className="btn btn-primary min-h-10 px-4">View products</Link>
-          <form action={action}><button name="intent" value="reset" className="btn btn-secondary min-h-10 px-4">Import another file</button></form>
+          <Link href="/admin/products" className="btn btn-primary">View products</Link>
+          <form action={action}><button name="intent" value="reset" className="btn btn-secondary">Import another file</button></form>
         </div>
       </section>
     );
@@ -26,18 +26,20 @@ export function ImportForm() {
 
   return (
     <div className="space-y-6">
-      <form action={action} className="space-y-3 bg-white p-6">
-        <label className="block text-sm" htmlFor="csv-file">CSV file (max 2 MB, 5,000 rows)</label>
-        <input id="csv-file" name="file" type="file" accept=".csv,text/csv" required className="block w-full text-sm file:me-3 file:border file:border-ink file:bg-transparent file:px-4 file:py-2 file:text-xs file:uppercase file:tracking-[0.12em]" />
-        <button name="intent" value="preview" className="btn btn-primary min-h-10 px-5" disabled={pending}>{pending ? "Checking…" : "Check file"}</button>
-        <p className="text-xs text-muted">Nothing is saved until you review the preview and confirm.</p>
-        {state.error && <p className="text-sm text-sale" role="alert">{state.error}</p>}
+      <form action={action} className="card space-y-4 p-6">
+        <div>
+          <label className="label" htmlFor="csv-file">CSV file</label>
+          <input id="csv-file" name="file" type="file" accept=".csv,text/csv" required className="file-input" />
+          <p className="mt-1.5 text-[12px] text-muted">Max 2 MB and 5,000 rows. Nothing is saved until you review the preview and confirm.</p>
+        </div>
+        <button name="intent" value="preview" className="btn btn-primary" disabled={pending}>{pending ? "Checking…" : "Check file"}</button>
+        {state.error && <p className="alert alert-danger" role="alert">{state.error}</p>}
       </form>
 
       {plan && (
-        <section className="space-y-4 bg-white p-6">
+        <section className="card space-y-4 p-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-2xl">Preview · {state.fileName}</h2>
+            <h2 className="text-lg">Preview · {state.fileName}</h2>
             <p className="text-sm text-muted">{plan.created.length} new · {plan.updated.length} updates · {plan.variantCount} variants</p>
           </div>
 
@@ -79,7 +81,7 @@ export function ImportForm() {
               </div>
               <form action={action} className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
                 <input type="hidden" name="csv" value={state.csv ?? ""} />
-                <button name="intent" value="apply" className="btn btn-primary min-h-10 px-5" disabled={pending}>
+                <button name="intent" value="apply" className="btn btn-primary" disabled={pending}>
                   {pending ? "Importing…" : `Import ${plan.products.length} product(s)`}
                 </button>
                 <p className="text-xs text-muted">Updates replace each product’s colours, sizes and variants with the file’s rows. Products not in the file are untouched.</p>

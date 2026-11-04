@@ -7,6 +7,7 @@ import { PRICE_BANDS, SORTS, type FilterState } from "@/lib/filters";
 import type { Colour, Product } from "@/lib/types";
 import { ProductGrid } from "./ProductRows";
 import { CloseIcon, FilterIcon } from "./Icons";
+import { Sheet } from "./Sheet";
 
 interface Facets {
   sizes: string[];
@@ -150,21 +151,16 @@ export function Listing({ products, total, shown, facets, state }: { products: P
         )}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
-          <button className="absolute inset-0 bg-ink/40" aria-label="Close filters" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 end-0 flex w-[88%] max-w-sm flex-col bg-ivory">
-            <div className="flex items-center justify-between border-b border-line px-5 py-4">
-              <h2 className="text-2xl">Filter</h2>
-              <button onClick={() => setOpen(false)} aria-label="Close filters"><CloseIcon /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 py-5">{panel}</div>
-            <div className="border-t border-line p-4">
-              <button onClick={() => setOpen(false)} className="btn btn-primary w-full">Show {total} results</button>
-            </div>
-          </div>
+      <Sheet open={open} onClose={() => setOpen(false)} label="Filters" side="end" className="w-[88%] max-w-sm">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 className="text-2xl">Filter</h2>
+          <button onClick={() => setOpen(false)} aria-label="Close filters" className="transition-transform duration-300 hover:rotate-90"><CloseIcon /></button>
         </div>
-      )}
+        <div className="flex-1 overflow-y-auto px-5 py-5">{panel}</div>
+        <div className="border-t border-line p-4">
+          <button onClick={() => setOpen(false)} className="btn btn-primary w-full">Show {total} results</button>
+        </div>
+      </Sheet>
     </div>
   );
 }

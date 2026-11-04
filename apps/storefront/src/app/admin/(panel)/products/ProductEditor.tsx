@@ -217,7 +217,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
               <p className="text-sm">How should this box be priced?</p>
               <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Box pricing">
                 {([["fixed", "Fixed price I set"], ["discount", "% off the items' total"]] as const).map(([m, label]) => (
-                  <label key={m} className={`flex cursor-pointer items-center gap-2 border px-3 py-2 text-sm ${boxMode === m ? "border-ink bg-white" : "border-line"}`}>
+                  <label key={m} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-[13px] transition-colors ${boxMode === m ? "border-ink bg-white shadow-sm" : "border-[var(--admin-line-strong)] hover:border-ink/40"}`}>
                     <input type="radio" name="box-mode" className="accent-ink" checked={boxMode === m} onChange={() => setBoxMode(m)} />
                     {label}
                   </label>
@@ -337,7 +337,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
             <ul className="space-y-2">
               {colours.map((c, i) => (
                 <li key={c.key} className="flex items-center gap-2">
-                  <input type="color" aria-label={`${c.name || "Colour"} swatch`} value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"} onChange={(e) => setColours(colours.map((x, j) => (j === i ? { ...x, hex: e.target.value.toUpperCase() } : x)))} className="h-10 w-10 cursor-pointer border border-line bg-white p-0.5" />
+                  <input type="color" aria-label={`${c.name || "Colour"} swatch`} value={/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : "#000000"} onChange={(e) => setColours(colours.map((x, j) => (j === i ? { ...x, hex: e.target.value.toUpperCase() } : x)))} className="h-10 w-10 cursor-pointer rounded-lg border border-[var(--admin-line-strong)] bg-white p-1" />
                   <input className="field min-h-10 flex-1 py-1" placeholder="Colour name" aria-label="Colour name" value={c.name} onChange={(e) => setColours(colours.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                   <input className="field min-h-10 w-28 py-1 font-mono text-xs" aria-label="Hex" value={c.hex} onChange={(e) => setColours(colours.map((x, j) => (j === i ? { ...x, hex: e.target.value } : x)))} />
                   <button type="button" onClick={() => {
@@ -364,7 +364,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
             <p className="mb-2 text-sm">Sizes *</p>
             <div className="flex flex-wrap items-center gap-1.5">
               {sizes.map((s) => (
-                <span key={s} className="flex items-center gap-1 border border-ink bg-white px-2 py-1 text-sm">
+                <span key={s} className="flex items-center gap-1 rounded-full border border-[var(--admin-line-strong)] bg-white py-1 ps-3 pe-2 text-[13px]">
                   {s}
                   <button type="button" onClick={() => setSizes(sizes.filter((x) => x !== s))} aria-label={`Remove size ${s}`} className="text-muted hover:text-sale">×</button>
                 </span>
@@ -377,7 +377,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
                 onChange={(e) => setNewSize(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSize(newSize); } }}
               />
-              <button type="button" onClick={() => addSize(newSize)} className="text-xs underline">Add</button>
+              <button type="button" onClick={() => addSize(newSize)} className="btn btn-secondary btn-sm">Add</button>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className="text-xs text-muted">Presets:</span>
@@ -405,7 +405,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
                   Set every variant to
                   <input className="field min-h-9 w-20 py-1" inputMode="numeric" value={fillAll} onChange={(e) => setFillAll(e.target.value.replace(/\D/g, ""))} aria-label="Stock for every variant" />
                 </label>
-                <button type="button" className="text-xs underline" disabled={!fillAll} onClick={() => { const m = { ...cells }; colours.forEach((c) => sizes.forEach((s) => { m[`${c.key}|${s}`] = { ...cell(c, s), stock: fillAll }; })); setCells(m); }}>Apply</button>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={!fillAll} onClick={() => { const m = { ...cells }; colours.forEach((c) => sizes.forEach((s) => { m[`${c.key}|${s}`] = { ...cell(c, s), stock: fillAll }; })); setCells(m); }}>Apply</button>
                 <label className="ms-auto flex items-center gap-2 text-xs"><input type="checkbox" checked={showSkus} onChange={(e) => setShowSkus(e.target.checked)} /> Edit SKUs</label>
               </div>
               <div className="overflow-x-auto">
@@ -425,7 +425,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
                           return (
                             <td key={s} className="px-1 py-1.5">
                               <input
-                                className={`w-full min-w-14 border px-2 py-1.5 text-center tabular-nums ${Number(v.stock) === 0 ? "border-sale/50 bg-sale/5" : "border-line bg-white"}`}
+                                className={`w-full min-w-14 rounded-md border px-2 py-1.5 text-center tabular-nums ${Number(v.stock) === 0 ? "border-sale/50 bg-sale/5" : "border-line bg-white"}`}
                                 inputMode="numeric"
                                 value={v.stock}
                                 onChange={(e) => setCell(c, s, { stock: e.target.value.replace(/\D/g, "") })}
@@ -433,7 +433,7 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
                               />
                               {showSkus && (
                                 <input
-                                  className="mt-1 w-full min-w-28 border border-line bg-white px-1 py-1 font-mono text-[10px] uppercase"
+                                  className="mt-1 w-full min-w-28 rounded-md border border-line bg-white px-1.5 py-1 font-mono text-[10px] uppercase"
                                   placeholder={autoSku(productId ?? "pNEW", c.name || "COL", s)}
                                   value={v.sku}
                                   onChange={(e) => setCell(c, s, { sku: e.target.value.toUpperCase() })}
@@ -458,40 +458,40 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
         )}
       </div>
 
-      <aside className="h-fit space-y-4 lg:sticky lg:top-6">
-        <div className="bg-white p-5">
-          <p className="eyebrow mb-3">Preview</p>
+      <aside className="h-fit space-y-4 lg:sticky lg:top-8">
+        <div className="card p-5">
+          <p className="mb-3 text-[12px] font-medium text-muted">Store preview</p>
           <div className="relative">
             {previewPhoto ? (
-              <div className="relative aspect-[4/5] w-full overflow-hidden bg-cream">
+              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-cream">
                 <Image src={previewPhoto.url} alt="" fill sizes="280px" className="object-cover" />
               </div>
             ) : (
-              <ProductArt garment={f.garment as Garment} hex={/^#[0-9a-f]{6}$/i.test(previewColour.hex) ? previewColour.hex : "#D8C3A5"} embroidered={/embroider/i.test(f.tags)} className="aspect-[4/5] w-full" />
+              <ProductArt garment={f.garment as Garment} hex={/^#[0-9a-f]{6}$/i.test(previewColour.hex) ? previewColour.hex : "#D8C3A5"} embroidered={/embroider/i.test(f.tags)} className="aspect-[4/5] w-full overflow-hidden rounded-lg" />
             )}
-            {state === "live" && pct > 0 && <span className="absolute start-2 top-2 bg-sale px-2 py-0.5 text-[11px] font-medium text-white">-{pct}%</span>}
-            {f.status !== "active" && <span className="absolute end-2 top-2 bg-ink px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-ivory">{f.status}</span>}
+            {state === "live" && pct > 0 && <span className="absolute start-2 top-2 rounded-md bg-sale px-2 py-0.5 text-[11px] font-medium text-white">-{pct}%</span>}
+            {f.status !== "active" && <span className="absolute end-2 top-2 rounded-md bg-ink/85 px-2 py-0.5 text-[11px] font-medium capitalize text-ivory">{f.status}</span>}
           </div>
-          <p className="mt-3 text-sm">{f.name || "Untitled product"}</p>
+          <p className="mt-3 text-[14px] font-medium">{f.name || "Untitled product"}</p>
           <p className="text-sm">
             {isBox && boxMode === "discount"
               ? boxDiscountPrice ? formatPKR(boxDiscountPrice) : "—"
               : state === "live" && salePaisa ? <><span className="font-medium text-sale">{formatPKR(salePaisa)}</span> <s className="text-muted">{formatPKR(basePaisa)}</s></> : basePaisa ? formatPKR(basePaisa) : "—"}
           </p>
-          <p className="mt-2 text-xs text-muted">
+          <p className="mt-2 text-[12px] text-muted">
             {isBox ? `Gift box · ${boxItems.length} item(s) · ${boxStock} box(es) in stock` : `${colours.length} colour(s) · ${sizes.length} size(s) · ${totalStock} in stock`}
           </p>
         </div>
-        <div className="space-y-3 bg-white p-5">
+        <div className="card space-y-3 p-5">
           {Object.keys(errors).length > 0 && (
-            <div className="bg-sale/10 p-3 text-sm text-sale" role="alert">
+            <div className="alert alert-danger" role="alert">
               <p className="font-medium">Please fix {Object.keys(errors).length} problem(s):</p>
               <ul className="mt-1 list-disc ps-5 text-xs">{Object.values(errors).map((m) => <li key={m}>{m}</li>)}</ul>
             </div>
           )}
           <button className="btn btn-primary w-full" disabled={saving}>{saving ? "Saving…" : productId ? "Save changes" : "Create product"}</button>
           {productId && f.status === "active" && f.slug && <Link href={`/products/${f.slug}`} target="_blank" className="btn btn-secondary w-full">View on store ↗</Link>}
-          <Link href="/admin/products" className="block text-center text-xs underline">Back to products</Link>
+          <Link href="/admin/products" className="block pt-1 text-center text-[13px] text-muted transition-colors hover:text-ink">Cancel and go back</Link>
         </div>
       </aside>
     </form>
@@ -499,14 +499,14 @@ export function ProductEditor({ initial, productId, previewNow, boxChoices = [] 
 }
 
 function Err({ msg }: { msg?: string }) {
-  return msg ? <p data-error className="mt-1 text-xs text-sale" role="alert">{msg}</p> : null;
+  return msg ? <p data-error className="mt-1.5 text-[12px] text-sale" role="alert">{msg}</p> : null;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-4 bg-white p-5">
-      <h2 className="text-xl">{title}</h2>
-      {children}
+    <section className="card">
+      <div className="card-head"><h2>{title}</h2></div>
+      <div className="space-y-4 p-5">{children}</div>
     </section>
   );
 }
@@ -514,9 +514,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-1 block text-sm">{label}</label>
+      <label htmlFor={htmlFor} className="label">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[12px] text-muted">{hint}</p>}
     </div>
   );
 }
