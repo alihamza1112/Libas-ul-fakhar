@@ -127,7 +127,7 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
         return (
           <div
             key={groupId}
-            className={`border p-3 transition-colors ${overGroup === groupId ? "border-ink bg-cream" : "border-line"}`}
+            className={`rounded-xl border p-3 transition-colors ${overGroup === groupId ? "border-gold bg-[var(--admin-hover)]" : "border-dashed border-[var(--admin-line-strong)]"}`}
             onDragOver={(e) => {
               e.preventDefault();
               setOverGroup(groupId);
@@ -146,7 +146,7 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
                 {g.hex && <span className="h-4 w-4 rounded-full border border-line" style={{ backgroundColor: g.hex }} />}
                 {g.label} <span className="font-normal text-muted">({items.length})</span>
               </p>
-              <label className={`btn btn-secondary min-h-9 cursor-pointer px-3 text-[0.7rem] ${full ? "pointer-events-none opacity-40" : ""}`}>
+              <label className={`btn btn-secondary btn-sm cursor-pointer ${full ? "pointer-events-none opacity-40" : ""}`}>
                 Upload photos
                 <input
                   type="file"
@@ -195,12 +195,12 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
                         {warn && <span className="absolute inset-x-1 bottom-1 bg-amber-100/95 px-1.5 py-0.5 text-[10px] leading-tight" title={warn}>{warn}</span>}
                       </div>
                       <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => step(img.id, -1)} disabled={i === 0} className="h-7 w-7 border border-line text-xs disabled:opacity-30" aria-label="Move earlier">←</button>
-                        <button type="button" onClick={() => step(img.id, 1)} disabled={i === items.length - 1} className="h-7 w-7 border border-line text-xs disabled:opacity-30" aria-label="Move later">→</button>
+                        <button type="button" onClick={() => step(img.id, -1)} disabled={i === 0} className="h-7 w-7 rounded-md border border-line bg-white text-xs transition-colors hover:border-ink disabled:opacity-30" aria-label="Move earlier">←</button>
+                        <button type="button" onClick={() => step(img.id, 1)} disabled={i === items.length - 1} className="h-7 w-7 rounded-md border border-line bg-white text-xs transition-colors hover:border-ink disabled:opacity-30" aria-label="Move later">→</button>
                         <select
                           value={img.colourKey ?? ""}
                           onChange={(e) => move(img.id, e.target.value || null)}
-                          className="h-7 min-w-0 flex-1 border border-line bg-white px-1 text-xs"
+                          className="h-7 min-w-0 flex-1 rounded-md border border-line bg-white px-1 text-xs"
                           aria-label="Colour for this photo"
                         >
                           {colours.map((c) => <option key={c.key} value={c.key}>{c.name || "Unnamed"}</option>)}
@@ -221,7 +221,7 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
                         placeholder="Alt text (optional)"
                         aria-label="Alt text"
                         maxLength={140}
-                        className="w-full border border-line px-1.5 py-1 text-xs"
+                        className="w-full rounded-md border border-line px-1.5 py-1 text-xs"
                       />
                     </li>
                   );

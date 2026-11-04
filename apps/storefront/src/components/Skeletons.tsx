@@ -32,5 +32,5 @@ export function PageSkeleton() {
 }
 
 export function PanelSkeleton() {
-  return <div className="h-64 animate-pulse bg-white" aria-busy="true" aria-label="Loading" />;
+  return <div className="h-64 animate-pulse rounded-xl border border-[#e8e2d8] bg-white" aria-busy="true" aria-label="Loading" />;
 }

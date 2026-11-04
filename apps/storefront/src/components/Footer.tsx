@@ -130,19 +130,29 @@ export function WhatsAppFloat() {
       href={whatsappLink("Assalam-o-Alaikum! I have a question about Libas-ul-Fakhar.")}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-5 end-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#1f7a4d] text-white shadow-lg transition hover:scale-105 max-md:bottom-20"
+      className="wa-float group fixed bottom-5 end-5 z-30 max-md:bottom-20"
       aria-label="Chat with us on WhatsApp"
     >
-      <WhatsAppIcon width={28} height={28} />
+      {/* Label slides out on hover (desktop); the icon idles with a soft ripple and nudge */}
+      <span className="wa-label" aria-hidden>
+        <span className="block text-[13px] font-medium leading-tight">Chat with us</span>
+        <span className="block text-[11px] leading-tight text-white/75">Usually replies within minutes</span>
+      </span>
+      <span className="wa-icon">
+        <WhatsAppIcon width={26} height={26} />
+      </span>
     </a>
   );
 }
 
 export function Toast() {
   const { toast } = useStore();
+  // Keep the last message on screen while the toast slides away
+  const [shown, setShown] = useState(toast);
+  if (toast && toast !== shown) setShown(toast);
   return (
     <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
-      {toast && <p className="rounded-sm bg-ink px-4 py-3 text-sm text-ivory shadow-lg">{toast}</p>}
+      <p className="toast rounded-sm bg-ink px-4 py-3 text-sm text-ivory shadow-lg" data-open={toast ? true : undefined} aria-hidden={!toast}>{shown}</p>
     </div>
   );
 }

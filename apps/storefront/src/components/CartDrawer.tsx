@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
 import { computeTotals, formatPKR, FREE_SHIPPING_THRESHOLD } from "@/lib/pricing";
 import { ProductPhoto } from "./ProductPhoto";
 import { BagIcon, CloseIcon, MinusIcon, PlusIcon } from "./Icons";
 import { useStore, type ResolvedLine } from "./StoreProvider";
 import { useCatalog } from "./CatalogProvider";
+import { Sheet } from "./Sheet";
 
 export function FreeShippingBar({ subtotal }: { subtotal: number }) {
   const left = FREE_SHIPPING_THRESHOLD - subtotal;
@@ -58,30 +58,16 @@ export function CartDrawer() {
   const { products } = useCatalog();
   const totals = computeTotals(lines.map((l) => ({ unitPrice: l.product.price, qty: l.qty })));
 
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
-    window.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [drawerOpen, setDrawerOpen]);
-
   // In-cart cross-sell (FR-CART-08): an accessory not already in the bag
   const inBag = new Set(lines.map((l) => l.productId));
   const upsell = products.find((p) => p.group === "Accessories" && !inBag.has(p.id) && p.variants.some((v) => v.stock > 0) && p.price < 300000);
   const upsellVariant = upsell?.variants.find((v) => v.stock > 0);
 
-  if (!drawerOpen) return null;
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Shopping bag">
-      <button className="absolute inset-0 bg-ink/40" aria-label="Close bag" onClick={() => setDrawerOpen(false)} />
-      <aside className="absolute inset-y-0 end-0 flex w-full max-w-md flex-col bg-ivory shadow-2xl">
+    <Sheet open={drawerOpen} onClose={() => setDrawerOpen(false)} label="Shopping bag" side="end" className="w-full max-w-md">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-2xl">Your bag {count > 0 && <span className="font-sans text-sm text-muted">({count})</span>}</h2>
-          <button onClick={() => setDrawerOpen(false)} aria-label="Close bag" className="p-1"><CloseIcon /></button>
+          <button onClick={() => setDrawerOpen(false)} aria-label="Close bag" className="p-1 transition-transform duration-300 hover:rotate-90"><CloseIcon /></button>
         </div>
 
         {lines.length === 0 ? (
@@ -126,7 +112,6 @@ export function CartDrawer() {
             </div>
           </>
         )}
-      </aside>
-    </div>
+    </Sheet>
   );
 }

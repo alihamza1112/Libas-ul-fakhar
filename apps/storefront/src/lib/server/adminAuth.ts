@@ -11,7 +11,8 @@ const COOKIE = "luf_admin";
 const TTL_MS = 8 * 60 * 60 * 1000; // session timeout
 
 function secret(): string {
-  const s = process.env.ADMIN_SECRET ?? process.env.ADMIN_PASSWORD;
+  // || not ??: .env.example ships ADMIN_SECRET= (empty), which must fall back too
+  const s = process.env.ADMIN_SECRET || process.env.ADMIN_PASSWORD;
   if (!s) throw new Error("ADMIN_PASSWORD is not configured");
   return s;
 }

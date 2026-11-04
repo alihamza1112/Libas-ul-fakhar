@@ -51,7 +51,7 @@ export default async function Home() {
       </section>
 
       {/* Trust strip */}
-      <section className="border-b border-line bg-cream">
+      <section className="reveal border-b border-line bg-cream">
         <ul className="mx-auto grid max-w-7xl grid-cols-2 gap-4 px-4 py-5 text-xs md:grid-cols-4 md:text-sm">
           {[
             [CashIcon, "Cash on delivery", "Pay when it arrives"],
@@ -71,7 +71,7 @@ export default async function Home() {
       </section>
 
       {/* Department tiles (FR-HOME-02) */}
-      <section className="mx-auto max-w-7xl px-4 py-14">
+      <section className="reveal mx-auto max-w-7xl px-4 py-14">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6">
           {CLOTHING_DEPARTMENTS.map((d) => {
             const art = TILE_ART[d.slug as keyof typeof TILE_ART];
@@ -92,7 +92,7 @@ export default async function Home() {
 
       {/* Tohfa-e-Khaas gift boxes */}
       {giftBoxes.length > 0 && (
-        <section className="texture py-14">
+        <section className="reveal texture py-14">
           <div className="mx-auto max-w-7xl px-4">
             <SectionHead eyebrow="Ready to give" title="Tohfa-e-Khaas" href="/collections/gifts" cta="All gift boxes" />
             <p className="-mt-3 mb-6 max-w-xl text-sm text-ink-soft">Curated boxes of our finest pieces, packed together and priced as one, for Eid, weddings and every occasion worth celebrating.</p>
@@ -102,7 +102,7 @@ export default async function Home() {
       )}
 
       {newArrivals.length > 0 && (
-        <section className="mx-auto max-w-7xl px-4 py-10">
+        <section className="reveal mx-auto max-w-7xl px-4 py-10">
           <SectionHead eyebrow="Just landed" title="New arrivals" href="/collections/new-arrivals" />
           <ProductRail products={newArrivals.slice(0, 4)} />
         </section>
@@ -110,7 +110,7 @@ export default async function Home() {
 
       {/* Shoppable look (FR-HOME-06), shown only while all of its pieces are on sale */}
       {look.length === LOOK.length && (
-      <section className="bg-cream py-16">
+      <section className="reveal bg-cream py-16">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 md:grid-cols-2">
           <div className="grid grid-cols-3 gap-3">
             {look.map((p, i) => (
@@ -138,7 +138,7 @@ export default async function Home() {
       )}
 
       {bestSellers.length > 0 && (
-        <section className="mx-auto max-w-7xl px-4 py-14">
+        <section className="reveal mx-auto max-w-7xl px-4 py-14">
           <SectionHead eyebrow="Most loved" title="Best sellers" href="/collections/all?sort=best" />
           <ProductRail products={bestSellers.slice(0, 4)} />
         </section>
@@ -146,7 +146,7 @@ export default async function Home() {
 
       <PersonalRows products={products} />
 
-      <section className="mx-auto max-w-7xl px-4 pt-6">
+      <section className="reveal mx-auto max-w-7xl px-4 pt-6">
         <div className="texture grid items-center gap-6 p-8 text-center md:grid-cols-[1fr_auto] md:p-12 md:text-start">
           <div>
             <h2 className="text-3xl md:text-4xl">Order on WhatsApp</h2>

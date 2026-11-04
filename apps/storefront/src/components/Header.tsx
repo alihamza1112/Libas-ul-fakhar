@@ -9,6 +9,7 @@ import { formatPKR } from "@/lib/pricing";
 import { POPULAR_SEARCHES, searchProducts } from "@/lib/search";
 import { SITE } from "@/lib/site";
 import { useStore } from "./StoreProvider";
+import { Sheet } from "./Sheet";
 import { useCatalog } from "./CatalogProvider";
 import { ProductPhoto } from "./ProductPhoto";
 import { BagIcon, ChevronIcon, CloseIcon, HeartIcon, MenuIcon, SearchIcon, UserIcon } from "./Icons";
@@ -46,7 +47,7 @@ export function AnnouncementBar() {
   );
 }
 
-function SearchPanel({ onClose }: { onClose: () => void }) {
+function SearchPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -54,22 +55,18 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
   const results = useMemo(() => (q.trim().length >= 2 ? searchProducts(products, q).slice(0, 6) : []), [q, products]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    if (open) inputRef.current?.focus({ preventScroll: true });
+  }, [open]);
 
   const go = (term: string) => {
     onClose();
+    setQ("");
     router.push(`/search?q=${encodeURIComponent(term)}`);
   };
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Search">
-      <button className="absolute inset-0 bg-ink/40" aria-label="Close search" onClick={onClose} />
-      <div className="relative bg-ivory shadow-xl">
-        <div className="mx-auto max-w-3xl px-4 py-5">
+    <Sheet open={open} onClose={onClose} label="Search" side="top" className="max-h-[85dvh] overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-4 py-5">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -126,8 +123,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
             <p className="py-6 text-sm text-muted">No matches for “{q}”. Try “kurta”, “waistcoat” or “shawl”.</p>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -142,16 +138,17 @@ export function Header() {
   const { count, wishlist, setDrawerOpen, ready, account } = useStore();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
-  const [mega, setMega] = useState<string | null>(null);
+  const [mega, setMegaState] = useState<string | null>(null);
+  const [megaShown, setMegaShown] = useState<string | null>(null);
+  const setMega = useCallback((slug: string | null) => {
+    setMegaState(slug);
+    if (slug) setMegaShown(slug);
+  }, []);
   const [mobileDept, setMobileDept] = useState<string | null>(null);
   const closeOverlays = useCallback(() => {
     setMenu(false);
     setMega(null);
-  }, []);
-
-  useEffect(() => {
-    document.body.style.overflow = menu || search ? "hidden" : "";
-  }, [menu, search]);
+  }, [setMega]);
 
   return (
     <>
@@ -159,7 +156,7 @@ export function Header() {
         <RouteWatcher onChange={closeOverlays} />
       </Suspense>
       <AnnouncementBar />
-      <header className="sticky top-0 z-40 border-b border-line bg-ivory/95 backdrop-blur" onMouseLeave={() => setMega(null)}>
+      <header className="header-elevate sticky top-0 z-40 border-b border-line bg-ivory/95 backdrop-blur" onMouseLeave={() => setMega(null)}>
         <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 py-2 lg:py-3">
           <div className="flex items-center gap-1">
             <button className="p-2 lg:hidden" aria-label="Open menu" onClick={() => setMenu(true)}>
@@ -192,67 +189,67 @@ export function Header() {
           <ul className="mx-auto flex max-w-7xl justify-center gap-10 px-4">
             {DEPARTMENTS.map((d) => (
               <li key={d.slug} onMouseEnter={() => setMega(d.slug)} onFocus={() => setMega(d.slug)}>
-                <Link href={`/collections/${d.slug}`} className="block py-3 text-[0.8rem] uppercase tracking-[0.18em] hover:text-gold" aria-expanded={mega === d.slug}>
+                <Link href={`/collections/${d.slug}`} className="nav-link block py-3 text-[0.8rem] uppercase tracking-[0.18em] hover:text-gold" aria-expanded={mega === d.slug}>
                   {d.label}
                 </Link>
               </li>
             ))}
             <li onMouseEnter={() => setMega(null)}>
-              <Link href="/collections/new-arrivals" className="block py-3 text-[0.8rem] uppercase tracking-[0.18em] hover:text-gold">New In</Link>
+              <Link href="/collections/new-arrivals" className="nav-link block py-3 text-[0.8rem] uppercase tracking-[0.18em] hover:text-gold">New In</Link>
             </li>
             <li onMouseEnter={() => setMega(null)}>
-              <Link href="/collections/sale" className="block py-3 text-[0.8rem] uppercase tracking-[0.18em] text-sale">Sale</Link>
+              <Link href="/collections/sale" className="nav-link block py-3 text-[0.8rem] uppercase tracking-[0.18em] text-sale">Sale</Link>
             </li>
           </ul>
         </nav>
 
-        {mega && <MegaMenu dept={mega} />}
+        {megaShown && <MegaMenu dept={megaShown} open={mega !== null} />}
       </header>
 
-      {menu && (
-        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-          <button className="absolute inset-0 bg-ink/40" aria-label="Close menu" onClick={() => setMenu(false)} />
-          <div className="absolute inset-y-0 start-0 flex w-[86%] max-w-sm flex-col bg-ivory">
-            <div className="flex items-center justify-between border-b border-line px-4 py-3">
-              <Image src="/brand/logo-latin.png" alt={SITE.name} width={936} height={127} className="h-5 w-auto" />
-              <button onClick={() => setMenu(false)} aria-label="Close menu" className="p-2"><CloseIcon /></button>
-            </div>
-            <ul className="flex-1 overflow-y-auto px-4">
-              {DEPARTMENTS.map((d) => (
-                <li key={d.slug} className="border-b border-line">
-                  <button
-                    className="flex w-full items-center justify-between py-4 text-sm uppercase tracking-[0.16em]"
-                    onClick={() => setMobileDept(mobileDept === d.slug ? null : d.slug)}
-                    aria-expanded={mobileDept === d.slug}
-                  >
-                    {d.label}
-                    <ChevronIcon className={`transition-transform ${mobileDept === d.slug ? "rotate-90" : ""}`} />
-                  </button>
-                  {mobileDept === d.slug && (
+      <Sheet open={menu} onClose={() => setMenu(false)} label="Menu" side="start" className="w-[86%] max-w-sm">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3">
+          <Image src="/brand/logo-latin.png" alt={SITE.name} width={936} height={127} className="h-5 w-auto" />
+          <button onClick={() => setMenu(false)} aria-label="Close menu" className="p-2 transition-transform duration-300 hover:rotate-90"><CloseIcon /></button>
+        </div>
+        <ul className="flex-1 overflow-y-auto px-4">
+          {DEPARTMENTS.map((d, i) => {
+            const expanded = mobileDept === d.slug;
+            return (
+              <li key={d.slug} className="sheet-item border-b border-line" style={{ "--i": i } as React.CSSProperties}>
+                <button
+                  className="flex w-full items-center justify-between py-4 text-sm uppercase tracking-[0.16em]"
+                  onClick={() => setMobileDept(expanded ? null : d.slug)}
+                  aria-expanded={expanded}
+                >
+                  {d.label}
+                  <ChevronIcon className={`transition-transform duration-300 ${expanded ? "rotate-90" : ""}`} />
+                </button>
+                <div className="expand" data-open={expanded || undefined} inert={!expanded}>
+                  <div>
                     <ul className="pb-3 ps-3">
                       <li><Link href={`/collections/${d.slug}`} className="block py-2 text-sm font-medium">Shop all {d.label}</Link></li>
                       {d.categories.map((c) => (
                         <li key={c.slug}>
-                          <Link href={`/collections/${d.slug}?category=${c.slug}`} className="block py-2 text-sm text-muted">{c.label}</Link>
+                          <Link href={`/collections/${d.slug}?category=${c.slug}`} className="block py-2 text-sm text-muted transition-colors hover:text-ink">{c.label}</Link>
                         </li>
                       ))}
                     </ul>
-                  )}
-                </li>
-              ))}
-              <li className="border-b border-line"><Link href="/collections/new-arrivals" className="block py-4 text-sm uppercase tracking-[0.16em]">New In</Link></li>
-              <li className="border-b border-line"><Link href="/collections/sale" className="block py-4 text-sm uppercase tracking-[0.16em] text-sale">Sale</Link></li>
-            </ul>
-            <div className="space-y-1 border-t border-line p-4 text-sm">
-              <Link href="/account" className="block py-2">{account ? "My account" : "Sign in / create account"}</Link>
-              <Link href="/track" className="block py-2">Track your order</Link>
-              <Link href="/pages/contact" className="block py-2">Help & contact</Link>
-            </div>
-          </div>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+          <li className="sheet-item border-b border-line" style={{ "--i": DEPARTMENTS.length } as React.CSSProperties}><Link href="/collections/new-arrivals" className="block py-4 text-sm uppercase tracking-[0.16em]">New In</Link></li>
+          <li className="sheet-item border-b border-line" style={{ "--i": DEPARTMENTS.length + 1 } as React.CSSProperties}><Link href="/collections/sale" className="block py-4 text-sm uppercase tracking-[0.16em] text-sale">Sale</Link></li>
+        </ul>
+        <div className="sheet-item space-y-1 border-t border-line p-4 text-sm" style={{ "--i": DEPARTMENTS.length + 2 } as React.CSSProperties}>
+          <Link href="/account" className="block py-2">{account ? "My account" : "Sign in / create account"}</Link>
+          <Link href="/track" className="block py-2">Track your order</Link>
+          <Link href="/pages/contact" className="block py-2">Help & contact</Link>
         </div>
-      )}
+      </Sheet>
 
-      {search && <SearchPanel onClose={() => setSearch(false)} />}
+      <SearchPanel open={search} onClose={() => setSearch(false)} />
     </>
   );
 }
@@ -265,14 +262,14 @@ function Badge({ n }: { n: number }) {
   );
 }
 
-function MegaMenu({ dept }: { dept: string }) {
+function MegaMenu({ dept, open }: { dept: string; open: boolean }) {
   const d = DEPARTMENTS.find((x) => x.slug === dept)!;
   const groups = ["Eastern", "Western", "Accessories"] as const;
   const { products } = useCatalog();
-  if (dept === GIFTS) return <GiftMenu />;
+  if (dept === GIFTS) return <GiftMenu open={open} />;
   const featured = products.filter((p) => p.department === dept).sort((a, b) => a.salesRank - b.salesRank)[0];
   return (
-    <div className="absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block">
+    <div className="mega absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block" data-open={open || undefined} inert={!open}>
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_1fr_1fr_280px] gap-10 px-8 py-8">
         {groups.map((g) => {
           const cats = d.categories.filter((c) => c.group === g);
@@ -306,11 +303,11 @@ function MegaMenu({ dept }: { dept: string }) {
 }
 
 /** Mega-menu panel for Tohfa-e-Khaas: the gift boxes themselves. */
-function GiftMenu() {
+function GiftMenu({ open }: { open: boolean }) {
   const { products } = useCatalog();
   const boxes = products.filter((p) => p.department === GIFTS && p.bundle).sort((a, b) => a.salesRank - b.salesRank).slice(0, 4);
   return (
-    <div className="absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block">
+    <div className="mega absolute inset-x-0 top-full hidden border-b border-line bg-ivory shadow-lg lg:block" data-open={open || undefined} inert={!open}>
       <div className="mx-auto grid max-w-7xl grid-cols-[220px_1fr] gap-10 px-8 py-8">
         <div>
           <p className="eyebrow mb-3">Tohfa-e-Khaas</p>
