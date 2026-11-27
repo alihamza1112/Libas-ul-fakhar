@@ -29,6 +29,34 @@ export function altFor(p: Pick<Product, "name">, img: ProductImage, index: numbe
   return `${p.name}${img.colour ? ` in ${img.colour}` : ""}${index ? ` – view ${index + 1}` : ""}`;
 }
 
+/** Largest stored photo: 1600×2000, the 4:5 size the storefront is designed around. */
+export const OUTPUT_WIDTH = 1600;
+/** Up to this share of a photo may be cropped away to reach 4:5; beyond it the photo is padded instead. */
+export const MAX_CROP_SHARE = 0.2;
+
+export interface FitPlan {
+  /** crop: trim the long side evenly from both ends; pad: extend the short side with the edge colour. */
+  mode: "none" | "crop" | "pad";
+  width: number;
+  height: number;
+}
+
+/**
+ * How an uploaded photo of `width`×`height` becomes an exact 4:5 portrait no larger
+ * than OUTPUT_WIDTH wide. Small differences are cropped; large ones (e.g. a landscape
+ * shot) are padded so the garment is never cut off. Never enlarges.
+ */
+export function fitPlan(width: number, height: number): FitPlan {
+  const r = width / height;
+  const off = Math.abs(r - TARGET_RATIO) / TARGET_RATIO;
+  const mode = off <= 0.01 ? "none" : 1 - Math.min(r / TARGET_RATIO, TARGET_RATIO / r) <= MAX_CROP_SHARE ? "crop" : "pad";
+  // Width of the 4:5 frame at the photo's own resolution
+  const tooWide = r > TARGET_RATIO;
+  const frameW = mode === "pad" ? (tooWide ? width : height * TARGET_RATIO) : tooWide ? height * TARGET_RATIO : width;
+  const w = Math.max(1, Math.round(Math.min(frameW, OUTPUT_WIDTH)));
+  return { mode, width: w, height: Math.round(w / TARGET_RATIO) };
+}
+
 /** Whether a photo is close enough to the 4:5 portrait the storefront crops to. */
 export function ratioWarning(img: Pick<ProductImage, "width" | "height">): string | undefined {
   const r = img.width / img.height;

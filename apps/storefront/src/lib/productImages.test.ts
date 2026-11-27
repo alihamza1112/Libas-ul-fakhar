@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { altFor, imagesFor, imageUrl, normaliseImages, ratioWarning, removedImageIds } from "./productImages.ts";
+import { altFor, fitPlan, imagesFor, imageUrl, normaliseImages, ratioWarning, removedImageIds } from "./productImages.ts";
 import { validateProduct } from "./productInput.ts";
 import { toInput } from "./productInput.ts";
 import { planImport, productsToCsv } from "./productCsv.ts";
@@ -54,4 +54,25 @@ test("product validation stores photos and CSV import keeps them", () => {
   const plan = planImport(productsToCsv([stored]), [stored, ...SEED_PRODUCTS.slice(1)], "2026-10-22T00:00:00.000Z");
   assert.deepEqual(plan.errors, []);
   assert.deepEqual(plan.products[0].images, stored.images);
+});
+
+test("uploads become 4:5 portraits no wider than 1600px", () => {
+  // Already 4:5, larger than needed: scaled down only
+  assert.deepEqual(fitPlan(3200, 4000), { mode: "none", width: 1600, height: 2000 });
+  // Phone portrait 3:4 is a little too tall: crop top/bottom
+  assert.deepEqual(fitPlan(3024, 4032), { mode: "crop", width: 1600, height: 2000 });
+  // Square loses 20%: still cropped
+  assert.equal(fitPlan(2000, 2000).mode, "crop");
+  // Landscape would lose too much: padded, never cut
+  assert.deepEqual(fitPlan(4032, 3024), { mode: "pad", width: 1600, height: 2000 });
+  // Very tall strip: padded at the sides
+  assert.equal(fitPlan(1000, 3000).mode, "pad");
+  // Small photos are never enlarged
+  assert.deepEqual(fitPlan(800, 1000), { mode: "none", width: 800, height: 1000 });
+  assert.deepEqual(fitPlan(600, 600), { mode: "crop", width: 480, height: 600 });
+  for (const [w, h] of [[3024, 4032], [4032, 3024], [500, 2000], [2000, 500], [1234, 1567]]) {
+    const p = fitPlan(w, h);
+    assert.ok(Math.abs(p.width / p.height - 0.8) < 0.002, `${w}×${h} → ${p.width}×${p.height}`);
+    assert.ok(p.width <= 1600);
+  }
 });

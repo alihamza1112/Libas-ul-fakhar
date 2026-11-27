@@ -24,8 +24,44 @@ interface Pending {
 }
 
 const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
-const MAX_BYTES = 10 * 1024 * 1024;
+// iPhone photos: converted to JPEG in the browser where it can read them (Safari)
+const PICKABLE = [...ACCEPT, "image/heic", "image/heif", ".heic", ".heif"];
+const MAX_PICK_BYTES = 60 * 1024 * 1024;
+// Bigger photos are scaled to fit SHRINK_TO_EDGE before upload; the server makes the final 4:5 size
+const SHRINK_OVER_BYTES = 8 * 1024 * 1024;
+const SHRINK_TO_EDGE = 4000;
 const PARALLEL = 3;
+
+const isHeic = (file: File) => /heic|heif/i.test(file.type + file.name);
+
+/**
+ * Makes a photo ready to upload: very large phone photos are scaled down and
+ * re-saved as JPEG, and HEIC is converted where the browser can decode it.
+ * Anything already small enough is sent as it is.
+ */
+async function prepare(file: File): Promise<File> {
+  const native = ACCEPT.includes(file.type);
+  if (native && file.size <= SHRINK_OVER_BYTES) return file;
+  let bmp: ImageBitmap;
+  try {
+    bmp = await createImageBitmap(file);
+  } catch {
+    if (native) return file; // let the server decide
+    throw new Error(isHeic(file) ? "This browser can’t read HEIC photos – open the site in Safari, or export as JPEG." : "Use a JPEG, PNG, WebP or HEIC photo.");
+  }
+  const scale = Math.min(1, SHRINK_TO_EDGE / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#ffffff"; // JPEG has no transparency
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  bmp.close();
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) return file;
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+}
 
 export function PhotoManager({ images, onChange, colours }: { images: EditorImage[]; onChange: (next: EditorImage[]) => void; colours: ColourRef[] }) {
   const [pending, setPending] = useState<Pending[]>([]);
@@ -55,8 +91,8 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
     const rejected: Pending[] = [];
     for (const file of list) {
       const tempId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      if (!ACCEPT.includes(file.type)) rejected.push({ tempId, name: file.name, colourKey, error: /heic|heif/i.test(file.type + file.name) ? "HEIC isn’t supported – export as JPEG." : "Use JPEG, PNG or WebP." });
-      else if (file.size > MAX_BYTES) rejected.push({ tempId, name: file.name, colourKey, error: "Larger than 10 MB." });
+      if (!ACCEPT.includes(file.type) && !isHeic(file)) rejected.push({ tempId, name: file.name, colourKey, error: "Use a JPEG, PNG, WebP or HEIC photo." });
+      else if (file.size > MAX_PICK_BYTES) rejected.push({ tempId, name: file.name, colourKey, error: "Larger than 60 MB." });
       else queue.push({ file, tempId });
     }
     setPending((p) => [...p, ...rejected, ...queue.map((q) => ({ tempId: q.tempId, name: q.file.name, colourKey }))]);
@@ -66,9 +102,9 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
     const worker = async () => {
       while (cursor < queue.length) {
         const { file, tempId } = queue[cursor++];
-        const fd = new FormData();
-        fd.append("file", file);
         try {
+          const fd = new FormData();
+          fd.append("file", await prepare(file));
           const r = await fetch("/api/admin/uploads", { method: "POST", body: fd });
           const j = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(j.error ?? `Upload failed (${r.status}).`);
@@ -116,7 +152,8 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted">
-        Portrait 4:5 photos look best (e.g. 1600×2000). The first photo of each colour is the main image; the second appears on hover in listings.
+        Upload photos straight from your phone or camera: each one is resized to the store’s 4:5 portrait shape and compressed automatically.
+        Keep the garment near the centre; a very wide photo is fitted in whole rather than cropped. The first photo of each colour is the main image; the second appears on hover in listings.
         “All colours” photos (details, flat-lays) show after each colour’s own photos. Changes are saved with the product.
       </p>
       {groups.map((g) => {
@@ -150,7 +187,7 @@ export function PhotoManager({ images, onChange, colours }: { images: EditorImag
                 Upload photos
                 <input
                   type="file"
-                  accept={ACCEPT.join(",")}
+                  accept={PICKABLE.join(",")}
                   multiple
                   className="sr-only"
                   disabled={full}

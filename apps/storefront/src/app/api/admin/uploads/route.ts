@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   if (!(await isAdmin())) return Response.json({ error: "Please sign in again." }, { status: 401 });
   if (!rateLimit("admin-upload", 120, 60_000)) return Response.json({ error: "Too many uploads at once. Wait a minute and retry." }, { status: 429 });
   const length = Number(req.headers.get("content-length") ?? 0);
-  if (length > MAX_UPLOAD_BYTES + 64 * 1024) return Response.json({ error: "Photo is larger than 10 MB." }, { status: 413 });
+  if (length > MAX_UPLOAD_BYTES + 64 * 1024) return Response.json({ error: "Photo is larger than 25 MB." }, { status: 413 });
 
   let file: FormDataEntryValue | null;
   try {
